@@ -58,12 +58,11 @@ jobs:
         if: env.ANDROID_KEYSTORE != ''
         run: |
           echo "$ANDROID_KEYSTORE" | base64 --decode > src-tauri/gen/android/keystore.jks
-          cat > src-tauri/gen/android/keystore.properties <<PROPS
-          storeFile=keystore.jks
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          storePassword=$ANDROID_STORE_PASSWORD
-          PROPS
+          # printf, not a heredoc: YAML indents the block, and an indented
+          # heredoc terminator would never close.
+          printf 'storeFile=keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
+            "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD" \
+            > src-tauri/gen/android/keystore.properties
           node scripts/configure-signing.mjs
 
       # Without signing secrets we still produce something installable: a debug
