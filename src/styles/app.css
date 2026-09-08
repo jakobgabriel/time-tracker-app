@@ -18,6 +18,7 @@
   --accent-soft: rgba(195, 245, 60, 0.14);
 
   --danger: #ff6b63;
+  --warn: #f5b93c;
   --ok: #c3f53c;
 
   --radius: 14px;
@@ -241,6 +242,22 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   overflow-wrap: anywhere;
   text-wrap: balance;
 }
+
+/* A forgotten timer gets a warm colour and two ways out, not just a nag. */
+.warn {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  font-size: 14px;
+  text-align: center;
+}
+
+.dial-button.overrun .dial-ring { background: conic-gradient(var(--warn) var(--sweep, 0deg), transparent 0); }
+.dial-button.overrun .dial-label { color: var(--warn); }
 
 .dial-hint {
   min-height: 20px;
@@ -559,7 +576,20 @@ input:focus, select:focus, textarea:focus {
   background: var(--line);
 }
 
-.sheet h2 { margin-bottom: 14px; font-size: 18px; }
+.sheet h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 18px;
+}
+
+.sheet h2 .swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
 
 .sheet .stack { display: grid; gap: 14px; }
 
@@ -578,6 +608,15 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 16px 40px -22px #000;
   font-size: 14px;
   animation: toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.toast .undo {
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-weight: 700;
 }
 
 .toast.error { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }

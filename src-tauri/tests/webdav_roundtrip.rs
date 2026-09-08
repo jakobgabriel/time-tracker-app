@@ -22,11 +22,7 @@ fn settings() -> Settings {
         password: std::env::var("TEMPO_DAV_PASS").unwrap_or_default(),
         vault_folder: "Vault/Time Tracking".into(),
         file_layout: FileLayout::Daily,
-        auto_sync: true,
-        round_minutes: 0,
-        note_tag: "time-tracking".into(),
-        daily_goal_minutes: 0,
-        last_sync: None,
+        ..Settings::default()
     }
 }
 

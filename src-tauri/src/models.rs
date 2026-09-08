@@ -48,6 +48,12 @@ pub struct Settings {
     pub note_tag: String,
     /// Target for a working day, in minutes (0 turns the goal ring off).
     pub daily_goal_minutes: u32,
+    /// A timer running longer than this was probably forgotten (0 = never warn).
+    pub max_session_minutes: u32,
+    /// Keep a JSON backup next to the notes, refreshed on every sync.
+    pub auto_backup: bool,
+    /// Also write a per-week roll-up note.
+    pub weekly_summary: bool,
     pub last_sync: Option<String>,
 }
 
@@ -63,6 +69,9 @@ impl Default for Settings {
             round_minutes: 0,
             note_tag: "time-tracking".to_string(),
             daily_goal_minutes: 0,
+            max_session_minutes: 480,
+            auto_backup: true,
+            weekly_summary: false,
             last_sync: None,
         }
     }

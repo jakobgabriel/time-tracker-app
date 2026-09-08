@@ -111,6 +111,11 @@ export function withDay(iso: string, day: string): string {
   return `${day}${iso.slice(10)}`;
 }
 
+/** A timestamp `minutes` after another one, in the device's current offset. */
+export function plusMinutes(iso: string, minutes: number): string {
+  return localIso(new Date(ms(iso) + minutes * 60_000));
+}
+
 export function relativeTime(iso: string | null): string {
   if (!iso) return "never";
   const seconds = Math.round((Date.now() - ms(iso)) / 1000);

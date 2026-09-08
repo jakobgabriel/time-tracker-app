@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, errorMessage } from "./lib/api";
-import { dayKey, formatShort, localIso, totalSeconds } from "./lib/time";
+import { dayKey, formatShort, localIso, plusMinutes, totalSeconds } from "./lib/time";
 import type { Entry, Settings, Snapshot } from "./lib/types";
 import { EntrySheet } from "./components/EntrySheet";
 import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { InsightsScreen } from "./components/InsightsScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { ProjectSheet } from "./components/ProjectSheet";
 import { Toast, useToast } from "./components/Toast";
 import { TrackScreen } from "./components/TrackScreen";
 
@@ -37,9 +38,10 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [tab, setTab] = useState<Tab>("track");
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [project, setProject] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [toast, showToast] = useToast();
+  const [toast, showToast, dismissToast] = useToast();
 
   const running = snapshot?.entries.find((entry) => !entry.end);
 
@@ -154,9 +156,24 @@ export default function App() {
           nowMs={nowMs}
           onStart={(project) => run(() => api.start(project))}
           onStop={stop}
-          onDiscard={() => run(() => api.discard(), "Discarded")}
+          onDiscard={async () => {
+            // Discarding throws work away; keep it recoverable for a moment.
+            const discarded = running;
+            if (await run(() => api.discard()) && discarded) {
+              showToast("Timer discarded", "info", {
+                label: "Undo",
+                run: () => run(() => api.saveEntry(discarded), "Timer restored"),
+              });
+            }
+          }}
           onEdit={setEditing}
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
+          onTrim={(entry, minutes) =>
+            run(
+              () => api.saveEntry({ ...entry, end: plusMinutes(entry.start, minutes) }),
+              "Stopped at the session limit",
+            )
+          }
         />
       )}
 
@@ -197,7 +214,29 @@ export default function App() {
               setBusy(false);
             }
           }}
-          onForgetProject={(name) => run(() => api.deleteProject(name))}
+          onBackup={async () => {
+            setBusy(true);
+            try {
+              showToast(await api.backup(), "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          onRestore={async () => {
+            setBusy(true);
+            try {
+              const message = await api.restore();
+              setSnapshot(await api.snapshot());
+              showToast(message, "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          onOpenProject={setProject}
         />
       )}
 
@@ -238,7 +277,14 @@ export default function App() {
             if (await run(() => api.saveEntry(entry), "Saved")) setEditing(null);
           }}
           onDelete={async (id) => {
-            if (await run(() => api.deleteEntry(id), "Deleted")) setEditing(null);
+            const removed = editing;
+            if (await run(() => api.deleteEntry(id))) {
+              setEditing(null);
+              showToast("Entry deleted", "info", {
+                label: "Undo",
+                run: () => run(() => api.saveEntry(removed), "Entry restored"),
+              });
+            }
           }}
           onResume={async (project) => {
             if (await run(() => api.start(project), `Tracking ${project}`)) {
@@ -250,7 +296,24 @@ export default function App() {
         />
       )}
 
-      <Toast toast={toast} />
+      {project && (
+        <ProjectSheet
+          name={project}
+          onRename={async (to) => {
+            if (await run(() => api.renameProject(project, to), `Renamed to ${to}`)) {
+              setProject(null);
+            }
+          }}
+          onForget={async () => {
+            if (await run(() => api.deleteProject(project), "Removed from the list")) {
+              setProject(null);
+            }
+          }}
+          onClose={() => setProject(null)}
+        />
+      )}
+
+      <Toast toast={toast} onDismiss={dismissToast} />
     </div>
   );
 }

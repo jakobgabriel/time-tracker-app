@@ -17,9 +17,12 @@ type Props = {
   onDiscard: () => void;
   onEdit: (entry: Entry) => void;
   onNote: (note: string) => void;
+  onTrim: (entry: Entry, minutes: number) => void;
 };
 
-export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote }: Props) {
+export function TrackScreen({
+  snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim,
+}: Props) {
   const { entries, projects } = snapshot;
   const running = entries.find((entry) => !entry.end);
   const elapsed = running ? entrySeconds(running, nowMs) : 0;
@@ -50,6 +53,10 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
       ? (elapsed % 60) * 6
       : null;
 
+  // A timer left running overnight is the one way this app can quietly lie.
+  const maxMinutes = snapshot.settings.maxSessionMinutes;
+  const overrun = Boolean(running) && maxMinutes > 0 && elapsed > maxMinutes * 60;
+
   const submitDraft = () => {
     const name = draft.trim();
     setDraft("");
@@ -61,7 +68,9 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
     <div className="screen">
       <div className="dial">
         <button
-          className={`dial-button${running ? " running" : ""}${ring === null ? "" : " has-ring"}`}
+          className={`dial-button${running ? " running" : ""}${ring === null ? "" : " has-ring"}${
+            overrun ? " overrun" : ""
+          }`}
           onClick={() => (running ? onStop() : onStart(nextProject))}
           aria-label={running ? `Stop tracking ${running.project}` : `Start tracking ${nextProject}`}
         >
@@ -81,6 +90,22 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
             </>
           )}
         </button>
+
+        {overrun && running && (
+          <div className="warn">
+            <span>
+              Running for {formatShort(elapsed)} — forgotten?
+            </span>
+            <div className="btn-row">
+              <button className="btn" onClick={() => onTrim(running, maxMinutes)}>
+                Stop at {formatShort(maxMinutes * 60)}
+              </button>
+              <button className="btn" onClick={onStop}>
+                Stop now
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="dial-hint">
           {running ? (

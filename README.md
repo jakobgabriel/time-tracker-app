@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Running | Insights | History |
+| Track | Insights | History | Forgotten timer |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Running](docs/screenshots/running.png) | ![Insights](docs/screenshots/insights.png) | ![History](docs/screenshots/history.png) |
+| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![History](docs/screenshots/history.png) | ![A timer left running](docs/screenshots/forgotten.png) |
 
 ## What it does
 
@@ -24,10 +24,14 @@ yourself.
   one for its figure), tracked days, average day, and where the hours actually went, per project.
 - **Fix things later.** Every entry can be edited — project, date, start, end, note, tags — or
   added by hand for the meeting you forgot to track. Search history by project, note or tag, and
-  pick an old entry back up with **Start this project again**.
+  pick an old entry back up with **Start this project again**. Deleting anything offers an undo.
+- **A timer left running overnight is caught.** Past the session limit the dial turns amber and
+  offers to stop now or to end the session at the limit, instead of quietly inflating the day.
+- **Projects can be renamed** — every entry follows, and the affected notes are rewritten on the
+  next sync. Renaming onto a name that already exists merges the two.
 - **Obsidian, not another silo.** Sync writes real Markdown to your vault over WebDAV, so the
-  data is yours and queryable with Dataview. **Export CSV** drops every entry next to the notes
-  for invoicing.
+  data is yours and queryable with Dataview. Optional weekly roll-up notes, **Export CSV** for
+  invoicing, and a **JSON backup** kept in the vault so a lost phone is not lost work.
 - Each project keeps a colour, derived from its name, so it looks the same on every device.
 
 ## The note it writes
@@ -143,8 +147,19 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
 - **Round durations** — 5/6/10/15/30 minutes, applied to the synced note and the CSV only. Your raw
   times stay exact, so you can always undo it.
 - **Daily goal** — draws today's progress around the start button and a line across the chart.
+- **Warn about a long session** — after 4–12 hours (or never), a running timer is flagged as
+  probably forgotten.
+- **Weekly summary note** — additionally writes `Weekly/2026-W37.md`, one section per day plus the
+  week's per-project totals. A week is rewritten whole, so it never drifts from the daily notes.
 - **Sync when a timer stops** — on by default; a sync that failed while offline is retried the next
   time the app comes to the foreground. Turn it off to sync by hand.
+
+### Backup and restore
+
+With **Back up on every sync** left on, each sync also refreshes `tempo-backup.json` in the vault
+folder: every entry and project, and deliberately no credentials. **Restore** merges that file back
+into the device — entries it does not have are added, nothing already there is overwritten — so it
+repairs both a lost phone and a mistaken delete, and running it twice is harmless.
 
 ### Exporting
 
@@ -173,7 +188,7 @@ npm run build           # typecheck + production bundle
 npm test                # calendar arithmetic, buckets, project totals
 
 cd src-tauri
-cargo test              # store, markdown, CSV, sync planning and time handling
+cargo test              # store, markdown, CSV, backup, sync planning, time handling
 cargo clippy --all-targets -- -D warnings
 ```
 
@@ -204,6 +219,7 @@ src-tauri/src/
   time.rs                parsing and formatting on the Rust side
   markdown.rs            note rendering and the managed-block splice
   csv.rs                 the export
+  backup.rs              the JSON backup written into the vault
   sync.rs                which days end up in which note
   webdav.rs              PROPFIND / MKCOL / GET / PUT
 ```

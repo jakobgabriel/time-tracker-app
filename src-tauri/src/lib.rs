@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod csv;
 pub mod error;
 pub mod markdown;
@@ -87,6 +88,14 @@ fn delete_entry(state: State<'_, AppState>, id: String) -> Result<Snapshot> {
 }
 
 #[tauri::command]
+fn rename_project(state: State<'_, AppState>, from: String, to: String) -> Result<Snapshot> {
+    state.with(|store| {
+        store.rename_project(&from, &to)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
 fn delete_project(state: State<'_, AppState>, name: String) -> Result<Snapshot> {
     state.with(|store| {
         store.delete_project(&name)?;
@@ -125,7 +134,7 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
 /// `full`, every day that has entries is rewritten instead.
 #[tauri::command]
 async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> {
-    let (settings, entries, days) = state.with(|store| {
+    let (settings, entries, projects, days) = state.with(|store| {
         let days: BTreeSet<String> = if full {
             store
                 .entries
@@ -136,7 +145,12 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
         } else {
             store.dirty_days.clone()
         };
-        Ok((store.settings.clone(), store.entries.clone(), days))
+        Ok((
+            store.settings.clone(),
+            store.entries.clone(),
+            store.projects.clone(),
+            days,
+        ))
     })?;
 
     if settings.webdav_url.trim().is_empty() {
@@ -156,7 +170,21 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     let plan = sync::plan(&entries, &days, &settings.file_layout)?;
     // The lock is released for the duration of the network round trips, so the
     // UI stays responsive and a timer can be started mid-sync.
-    let report = sync::push(&settings, plan).await?;
+    let mut report = sync::push(&settings, plan).await?;
+
+    if settings.weekly_summary {
+        let weekly = sync::weekly_plan(&entries, &days)?;
+        report.files += sync::push_into(&settings, weekly, WEEKLY_FOLDER)
+            .await?
+            .files;
+    }
+
+    if settings.auto_backup {
+        // Best effort: a failed backup must not lose the sync that succeeded.
+        if let Err(error) = write_backup(&settings, &entries, &projects).await {
+            eprintln!("tempo: backup skipped ({error})");
+        }
+    }
 
     state.with(|store| {
         for day in &days {
@@ -167,6 +195,70 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     })?;
 
     Ok(report)
+}
+
+/// The vault subfolder the weekly roll-ups live in.
+const WEEKLY_FOLDER: &str = "Weekly";
+
+fn vault_path(settings: &Settings, name: &str) -> String {
+    let folder = settings.vault_folder.trim().trim_matches('/');
+    if folder.is_empty() {
+        name.to_string()
+    } else {
+        format!("{folder}/{name}")
+    }
+}
+
+async fn write_backup(settings: &Settings, entries: &[Entry], projects: &[String]) -> Result<()> {
+    let dav = webdav::Dav::from_settings(settings)?;
+    let folder = settings.vault_folder.trim().trim_matches('/').to_string();
+    if !folder.is_empty() {
+        dav.ensure_folder(&folder).await?;
+    }
+    let body = backup::render(entries, projects, &chrono::Local::now().to_rfc3339())?;
+    dav.put(&vault_path(settings, backup::FILE), body).await
+}
+
+/// Writes the backup on demand — the same file a sync refreshes on its own.
+#[tauri::command]
+async fn backup_now(state: State<'_, AppState>) -> Result<String> {
+    let (settings, entries, projects) = state.with(|store| {
+        Ok((
+            store.settings.clone(),
+            store.entries.clone(),
+            store.projects.clone(),
+        ))
+    })?;
+    write_backup(&settings, &entries, &projects).await?;
+    Ok(format!(
+        "Backed up {} entries to {}",
+        entries.len(),
+        backup::FILE
+    ))
+}
+
+/// Merges the backup in the vault into this device. Additive: nothing already
+/// here is overwritten, so restoring twice is harmless.
+#[tauri::command]
+async fn restore_backup(state: State<'_, AppState>) -> Result<String> {
+    let settings = state.with(|store| Ok(store.settings.clone()))?;
+    let dav = webdav::Dav::from_settings(&settings)?;
+
+    let Some(text) = dav.get(&vault_path(&settings, backup::FILE)).await? else {
+        return Err(AppError::Invalid(format!(
+            "no {} in the vault yet — sync once to write one",
+            backup::FILE
+        )));
+    };
+
+    let parsed = backup::parse(&text)?;
+    let found = parsed.entries.len();
+    let added = state.with(|store| store.merge(parsed.entries, parsed.projects))?;
+
+    Ok(match added {
+        0 => format!("Backup holds {found} entries, all of them already here"),
+        _ => format!("Restored {added} of {found} entries"),
+    })
 }
 
 /// Writes every closed entry to `tempo-export.csv` next to the notes — the
@@ -217,11 +309,14 @@ pub fn run() {
             discard_timer,
             save_entry,
             delete_entry,
+            rename_project,
             delete_project,
             save_settings,
             test_connection,
             sync_now,
             export_csv,
+            backup_now,
+            restore_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tempo");

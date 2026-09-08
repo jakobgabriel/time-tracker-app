@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
+import { projectColor } from "../lib/colors";
 import { relativeTime } from "../lib/time";
 import type { Settings, Snapshot } from "../lib/types";
-import { CloudIcon, TableIcon } from "./Icons";
+import { CloudIcon, ShieldIcon, TableIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -11,11 +12,14 @@ type Props = {
   onTest: (settings: Settings) => void;
   onSync: (full: boolean) => void;
   onExport: () => void;
-  onForgetProject: (name: string) => void;
+  onBackup: () => void;
+  onRestore: () => void;
+  onOpenProject: (name: string) => void;
 };
 
 const ROUNDING = [0, 5, 6, 10, 15, 30];
 const GOALS = [0, 240, 360, 420, 450, 480, 600];
+const LIMITS = [0, 240, 360, 480, 600, 720];
 
 const goalLabel = (minutes: number) =>
   minutes === 0
@@ -25,7 +29,7 @@ const goalLabel = (minutes: number) =>
       : `${Math.floor(minutes / 60)}\u00a0h ${minutes % 60} min`;
 
 export function SettingsScreen({
-  snapshot, busy, onSave, onTest, onSync, onExport, onForgetProject,
+  snapshot, busy, onSave, onTest, onSync, onExport, onBackup, onRestore, onOpenProject,
 }: Props) {
   const [form, setForm] = useState<Settings>(snapshot.settings);
 
@@ -175,6 +179,40 @@ export function SettingsScreen({
         </div>
 
         <div className="field">
+          <label htmlFor="limit">Warn about a long session</label>
+          <select
+            id="limit"
+            value={form.maxSessionMinutes}
+            onChange={(event) => set("maxSessionMinutes", Number(event.target.value))}
+          >
+            {LIMITS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes === 0 ? "Never" : `After ${minutes / 60} hours`}
+              </option>
+            ))}
+          </select>
+          <span className="help">
+            A timer left running overnight is offered a sensible end time instead of quietly
+            inflating the day.
+          </span>
+        </div>
+
+        <div className="switch">
+          <span>
+            Weekly summary note
+            <br />
+            <span className="small muted">A roll-up per ISO week in a Weekly folder.</span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.weeklySummary}
+            aria-label="Weekly summary note"
+            onClick={() => set("weeklySummary", !form.weeklySummary)}
+          />
+        </div>
+
+        <div className="field">
           <label htmlFor="tag">Tag for new notes</label>
           <input
             id="tag"
@@ -235,6 +273,48 @@ export function SettingsScreen({
         </p>
       </div>
 
+      <div className="section-title">
+        <span>Backup</span>
+      </div>
+
+      <div className="card">
+        <div className="switch">
+          <span>
+            Back up on every sync
+            <br />
+            <span className="small muted">
+              Keeps <code>tempo-backup.json</code> in the vault. No credentials are written.
+            </span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.autoBackup}
+            aria-label="Back up on every sync"
+            onClick={() => set("autoBackup", !form.autoBackup)}
+          />
+        </div>
+        <div className="btn-row">
+          <button className="btn" onClick={onBackup} disabled={busy}>
+            <ShieldIcon /> Back up
+          </button>
+          <button className="btn" onClick={onRestore} disabled={busy}>
+            Restore
+          </button>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>
+          Restoring merges the backup into this device: entries it does not have are added, nothing
+          here is overwritten.
+        </p>
+        <button
+          className={dirty ? "btn primary wide" : "btn wide"}
+          onClick={() => onSave(form)}
+          disabled={!dirty}
+        >
+          {dirty ? "Save changes" : "All changes saved"}
+        </button>
+      </div>
+
       {snapshot.projects.length > 0 && (
         <>
           <div className="section-title">
@@ -242,12 +322,13 @@ export function SettingsScreen({
           </div>
           <div className="card">
             <p className="small muted" style={{ margin: 0 }}>
-              Tap to remove from the quick list. Tracked time is not affected.
+              Tap a project to rename, merge or remove it.
             </p>
             <div className="chips">
               {snapshot.projects.map((name) => (
-                <button key={name} className="chip" onClick={() => onForgetProject(name)}>
-                  {name} ✕
+                <button key={name} className="chip" onClick={() => onOpenProject(name)}>
+                  <span className="swatch" style={{ background: projectColor(name) }} />
+                  {name}
                 </button>
               ))}
             </div>

@@ -54,6 +54,19 @@ export const TableIcon = (p: Props) => (
   </svg>
 );
 
+export const TrashIcon = (p: Props) => (
+  <svg {...base} {...p} width="18" height="18">
+    <path d="M4 7h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M6.5 7l.8 12.1A1.5 1.5 0 0 0 8.8 20.5h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7" />
+  </svg>
+);
+
+export const ShieldIcon = (p: Props) => (
+  <svg {...base} {...p} width="18" height="18">
+    <path d="M12 3.5 19 6v5.5c0 4-2.9 7.4-7 8.9-4.1-1.5-7-4.9-7-8.9V6z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
 export const CloudIcon = (p: Props) => (
   <svg {...base} {...p} width="18" height="18">
     <path d="M7 18a4 4 0 0 1-.6-7.95 5.5 5.5 0 0 1 10.7-1.3A3.75 3.75 0 0 1 17 18z" />

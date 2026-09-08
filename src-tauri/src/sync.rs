@@ -5,7 +5,7 @@ use chrono::Local;
 use crate::error::Result;
 use crate::markdown;
 use crate::models::{Entry, FileLayout, Settings, SyncReport};
-use crate::time::{local_day, local_month};
+use crate::time::{iso_week, local_day, local_month};
 use crate::webdav::Dav;
 
 /// Which local days end up in which note, together with the entries to write.
@@ -57,14 +57,60 @@ pub fn plan(entries: &[Entry], days: &BTreeSet<String>, layout: &FileLayout) -> 
     Ok(plan)
 }
 
+/// Roll-up notes for every week a changed day belongs to.
+///
+/// A week is rewritten whole: a single edited day would otherwise leave the
+/// rest of the week's table stale.
+pub fn weekly_plan(entries: &[Entry], days: &BTreeSet<String>) -> Result<Plan> {
+    let mut by_day: BTreeMap<String, Vec<Entry>> = BTreeMap::new();
+    for entry in entries {
+        if entry.end.is_none() {
+            continue;
+        }
+        by_day
+            .entry(local_day(&entry.start)?)
+            .or_default()
+            .push(entry.clone());
+    }
+
+    let mut weeks: BTreeSet<String> = BTreeSet::new();
+    for day in days {
+        weeks.insert(iso_week(day)?);
+    }
+
+    let mut plan: Plan = BTreeMap::new();
+    for (day, entries) in by_day {
+        let week = iso_week(&day)?;
+        if weeks.contains(&week) {
+            plan.entry(format!("{week}.md"))
+                .or_default()
+                .push((day, entries));
+        }
+    }
+    // A week whose every entry was deleted still needs its note emptied.
+    for week in weeks {
+        plan.entry(format!("{week}.md")).or_default();
+    }
+    Ok(plan)
+}
+
 fn note_title(file: &str) -> &str {
     file.strip_suffix(".md").unwrap_or(file)
 }
 
 /// Pushes every planned note to the WebDAV share.
-pub async fn push(settings: &Settings, plan: Plan) -> Result<SyncReport> {
+///
+/// `subfolder` keeps the weekly roll-ups out of the daily notes' way.
+pub async fn push_into(settings: &Settings, plan: Plan, subfolder: &str) -> Result<SyncReport> {
     let dav = Dav::from_settings(settings)?;
-    let folder = settings.vault_folder.trim().trim_matches('/').to_string();
+    let mut folder = settings.vault_folder.trim().trim_matches('/').to_string();
+    if !subfolder.is_empty() {
+        folder = if folder.is_empty() {
+            subfolder.to_string()
+        } else {
+            format!("{folder}/{subfolder}")
+        };
+    }
     if !folder.is_empty() {
         dav.ensure_folder(&folder).await?;
     }
@@ -101,6 +147,10 @@ pub async fn push(settings: &Settings, plan: Plan) -> Result<SyncReport> {
         days,
         at: Local::now().to_rfc3339(),
     })
+}
+
+pub async fn push(settings: &Settings, plan: Plan) -> Result<SyncReport> {
+    push_into(settings, plan, "").await
 }
 
 #[cfg(test)]
@@ -150,6 +200,31 @@ mod tests {
         let days = BTreeSet::from(["2026-09-08".to_string()]);
         let plan = plan(&[], &days, &FileLayout::Daily).unwrap();
         assert_eq!(plan["2026-09-08.md"][0].1.len(), 0);
+    }
+
+    #[test]
+    fn a_weekly_note_covers_the_whole_week() {
+        let entries = vec![
+            entry("2026-09-07", 9), // Monday
+            entry("2026-09-08", 9), // Tuesday, the day that changed
+            entry("2026-09-13", 9), // Sunday, same ISO week
+            entry("2026-09-14", 9), // Monday, the next week
+        ];
+        let days = BTreeSet::from(["2026-09-08".to_string()]);
+        let plan = weekly_plan(&entries, &days).unwrap();
+        assert_eq!(plan.keys().collect::<Vec<_>>(), vec!["2026-W37.md"]);
+        assert_eq!(
+            plan["2026-W37.md"].len(),
+            3,
+            "Monday through Sunday, not just Tuesday"
+        );
+    }
+
+    #[test]
+    fn a_week_emptied_by_deletion_is_still_rewritten() {
+        let days = BTreeSet::from(["2026-09-08".to_string()]);
+        let plan = weekly_plan(&[], &days).unwrap();
+        assert!(plan["2026-W37.md"].is_empty());
     }
 
     #[test]

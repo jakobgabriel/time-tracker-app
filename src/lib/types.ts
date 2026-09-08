@@ -19,6 +19,9 @@ export type Settings = {
   roundMinutes: number;
   noteTag: string;
   dailyGoalMinutes: number;
+  maxSessionMinutes: number;
+  autoBackup: boolean;
+  weeklySummary: boolean;
   lastSync: string | null;
 };
 

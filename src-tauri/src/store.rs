@@ -171,6 +171,67 @@ impl Store {
         self.save()
     }
 
+    /// Renames a project across every entry. Renaming onto an existing name
+    /// merges the two, which is the only sane reading of the request.
+    pub fn rename_project(&mut self, from: &str, to: &str) -> Result<usize> {
+        let to = to.trim().to_string();
+        if to.is_empty() {
+            return Err(AppError::Invalid("a project needs a name".into()));
+        }
+
+        let mut touched = Vec::new();
+        for index in 0..self.entries.len() {
+            if self.entries[index]
+                .project
+                .eq_ignore_ascii_case(from.trim())
+            {
+                self.entries[index].project = to.clone();
+                touched.push(self.entries[index].clone());
+            }
+        }
+        for entry in &touched {
+            self.mark_dirty(entry)?;
+        }
+
+        self.projects
+            .retain(|p| !p.eq_ignore_ascii_case(from.trim()));
+        self.touch_project(&to);
+        self.save()?;
+        Ok(touched.len())
+    }
+
+    /// Adds the entries a backup has and this device does not, keeping
+    /// everything already here. Restoring is additive on purpose: it repairs a
+    /// lost phone or a mistaken delete without overwriting newer work.
+    pub fn merge(&mut self, incoming: Vec<Entry>, projects: Vec<String>) -> Result<usize> {
+        let known: std::collections::HashSet<String> =
+            self.entries.iter().map(|entry| entry.id.clone()).collect();
+
+        let mut added = 0;
+        for entry in incoming {
+            if entry.id.is_empty() || known.contains(&entry.id) {
+                continue;
+            }
+            self.mark_dirty(&entry)?;
+            self.entries.push(entry);
+            added += 1;
+        }
+
+        for project in projects.into_iter().rev() {
+            if !self
+                .projects
+                .iter()
+                .any(|p| p.eq_ignore_ascii_case(&project))
+            {
+                self.touch_project(&project);
+            }
+        }
+
+        self.sort();
+        self.save()?;
+        Ok(added)
+    }
+
     pub fn delete_project(&mut self, project: &str) -> Result<()> {
         self.projects.retain(|p| p != project);
         self.save()
@@ -275,6 +336,84 @@ mod tests {
             })
             .unwrap_err();
         assert!(error.to_string().contains("before the start"));
+    }
+
+    #[test]
+    fn renaming_moves_every_entry_and_queues_the_days() {
+        let (mut store, _dir) = store();
+        store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.start("Other", "", vec![], &at(10, 0)).unwrap();
+        store.stop(&at(11, 0)).unwrap();
+        store.dirty_days.clear();
+
+        assert_eq!(store.rename_project("acme", "Acme GmbH").unwrap(), 1);
+        assert!(store.entries.iter().any(|e| e.project == "Acme GmbH"));
+        assert!(!store.projects.iter().any(|p| p == "Acme"));
+        assert!(store.projects.iter().any(|p| p == "Acme GmbH"));
+        assert_eq!(store.dirty_days.len(), 1, "the day has to be rewritten");
+    }
+
+    #[test]
+    fn renaming_onto_an_existing_name_merges_them() {
+        let (mut store, _dir) = store();
+        store.start("Admin", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.start("Amdin", "", vec![], &at(10, 0)).unwrap();
+        store.stop(&at(11, 0)).unwrap();
+
+        store.rename_project("Amdin", "Admin").unwrap();
+        assert_eq!(store.projects.iter().filter(|p| *p == "Admin").count(), 1);
+        assert_eq!(
+            store
+                .entries
+                .iter()
+                .filter(|e| e.project == "Admin")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn a_project_needs_a_name() {
+        let (mut store, _dir) = store();
+        assert!(store.rename_project("Acme", "  ").is_err());
+    }
+
+    #[test]
+    fn merging_a_backup_adds_what_is_missing_and_keeps_what_is_here() {
+        let (mut store, _dir) = store();
+        let mine = store.start("Acme", "mine", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.dirty_days.clear();
+
+        let from_backup = Entry {
+            id: "restored".into(),
+            project: "Reading".into(),
+            note: String::new(),
+            tags: vec![],
+            start: at(12, 0),
+            end: Some(at(13, 0)),
+        };
+        // The backup also carries a stale copy of an entry we already have.
+        let stale = Entry {
+            note: "stale".into(),
+            ..mine.clone()
+        };
+
+        let added = store
+            .merge(
+                vec![from_backup, stale],
+                vec!["Reading".into(), "Acme".into()],
+            )
+            .unwrap();
+
+        assert_eq!(added, 1, "only the unknown entry is taken");
+        assert_eq!(store.entries.len(), 2);
+        let kept = store.entries.iter().find(|e| e.id == mine.id).unwrap();
+        assert_eq!(kept.note, "mine", "local wins over the backup");
+        assert!(store.projects.iter().any(|p| p == "Reading"));
+        assert_eq!(store.dirty_days.len(), 1, "the restored day needs a note");
     }
 
     #[test]

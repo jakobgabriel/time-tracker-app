@@ -19,6 +19,9 @@ export const api = {
 
   deleteEntry: (id: string) => invoke<Snapshot>("delete_entry", { id }),
 
+  renameProject: (from: string, to: string) =>
+    invoke<Snapshot>("rename_project", { from, to }),
+
   deleteProject: (name: string) => invoke<Snapshot>("delete_project", { name }),
 
   saveSettings: (settings: Settings) => invoke<Snapshot>("save_settings", { settings }),
@@ -28,6 +31,10 @@ export const api = {
   sync: (full = false) => invoke<SyncReport>("sync_now", { full }),
 
   exportCsv: () => invoke<string>("export_csv"),
+
+  backup: () => invoke<string>("backup_now"),
+
+  restore: () => invoke<string>("restore_backup"),
 };
 
 /** Tauri rejects with a plain string; anything else is a genuine surprise. */

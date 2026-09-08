@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, Datelike, FixedOffset};
 
 use crate::error::{AppError, Result};
 
@@ -11,6 +11,14 @@ pub fn parse(ts: &str) -> Result<DateTime<FixedOffset>> {
 /// The calendar day the user experienced, `YYYY-MM-DD`.
 pub fn local_day(ts: &str) -> Result<String> {
     Ok(parse(ts)?.format("%Y-%m-%d").to_string())
+}
+
+/// The ISO week a local day falls in, `2026-W37` — the same key the UI uses.
+pub fn iso_week(day: &str) -> Result<String> {
+    let date = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .map_err(|_| AppError::Invalid(format!("not a valid day: {day}")))?;
+    let week = date.iso_week();
+    Ok(format!("{}-W{:02}", week.year(), week.week()))
 }
 
 pub fn local_month(day: &str) -> String {
@@ -84,6 +92,16 @@ mod tests {
         assert_eq!(round_seconds(23 * 60, 15), 1800);
         assert_eq!(round_seconds(3600, 0), 3600);
         assert_eq!(round_seconds(-5, 15), 0);
+    }
+
+    #[test]
+    fn iso_weeks_match_the_calendar() {
+        assert_eq!(iso_week("2026-09-08").unwrap(), "2026-W37");
+        // A Sunday belongs to the week that started on the Monday before it.
+        assert_eq!(iso_week("2026-09-13").unwrap(), "2026-W37");
+        assert_eq!(iso_week("2026-09-14").unwrap(), "2026-W38");
+        // The turn of the year is where naive week numbering falls apart.
+        assert_eq!(iso_week("2027-01-01").unwrap(), "2026-W53");
     }
 
     #[test]
