@@ -46,6 +46,8 @@ pub struct Settings {
     pub round_minutes: u32,
     /// Written into the note's front matter so Dataview/queries can pick it up.
     pub note_tag: String,
+    /// Target for a working day, in minutes (0 turns the goal ring off).
+    pub daily_goal_minutes: u32,
     pub last_sync: Option<String>,
 }
 
@@ -60,6 +62,7 @@ impl Default for Settings {
             auto_sync: true,
             round_minutes: 0,
             note_tag: "time-tracking".to_string(),
+            daily_goal_minutes: 0,
             last_sync: None,
         }
     }

@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 import {
   dayLabel, entrySeconds, formatShort, groupByDay, totalSeconds, weekKey,
 } from "../lib/time";
@@ -13,7 +15,20 @@ type Props = {
 };
 
 export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd }: Props) {
-  const days = groupByDay(snapshot.entries);
+  const [query, setQuery] = useState("");
+
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return snapshot.entries;
+    return snapshot.entries.filter((entry) =>
+      [entry.project, entry.note, ...entry.tags]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [snapshot.entries, query]);
+
+  const days = groupByDay(matches);
 
   const weekTotals = new Map<string, number>();
   for (const [day, entries] of days) {
@@ -25,13 +40,30 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd }: Props) {
 
   return (
     <div className="screen">
-      <button className="btn wide" onClick={onAdd}>
-        <PlusIcon /> Add entry
-      </button>
+      <div className="search">
+        <input
+          type="text"
+          inputMode="search"
+          placeholder="Search project, note or tag"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        {query ? (
+          <button className="clear" aria-label="Clear search" onClick={() => setQuery("")}>
+            ✕
+          </button>
+        ) : (
+          <button className="clear" aria-label="Add entry" onClick={onAdd}>
+            <PlusIcon />
+          </button>
+        )}
+      </div>
 
       {days.length === 0 ? (
         <p className="empty" style={{ marginTop: 16 }}>
-          No history yet. Start a timer and it will show up here.
+          {query
+            ? `Nothing matches “${query.trim()}”.`
+            : "No history yet. Start a timer and it will show up here."}
         </p>
       ) : (
         days.map(([day, entries]) => {
@@ -69,8 +101,8 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd }: Props) {
 
       {days.length > 0 && (
         <p className="small muted" style={{ marginTop: 18, textAlign: "center" }}>
-          {snapshot.entries.length} entries ·{" "}
-          {formatShort(snapshot.entries.reduce((sum, e) => sum + entrySeconds(e, nowMs), 0))} total
+          {matches.length} {query ? "matching " : ""}entries ·{" "}
+          {formatShort(matches.reduce((sum, e) => sum + entrySeconds(e, nowMs), 0))} total
         </p>
       )}
     </div>

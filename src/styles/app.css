@@ -192,9 +192,10 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   color: var(--text);
 }
 
-/* The ring sweeps once a minute: a second hand you read without thinking. */
-.dial-button.running::after {
-  content: "";
+/* The ring carries one number: today's progress against the daily goal, or —
+   when no goal is set — a second hand that sweeps once a minute. It sits
+   outside the dial so it reads against the background in either state. */
+.dial-ring {
   position: absolute;
   inset: -9px;
   border-radius: 50%;
@@ -204,7 +205,8 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   pointer-events: none;
 }
 
-.dial-button.running::before {
+.dial-button.running::before,
+.dial-button.has-ring::before {
   content: "";
   position: absolute;
   inset: -9px;
@@ -305,14 +307,12 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 }
 
 .chip .swatch {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: currentColor;
-  opacity: 0.45;
 }
 
-.chip.active .swatch { opacity: 0.7; }
+.chip.active .swatch { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent-ink) 35%, transparent); }
 
 /* ------------------------------------------------------------------ list */
 .list { display: grid; gap: 8px; }
@@ -342,6 +342,16 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* inline-block, not flex: the row still has to ellipsise a long name. */
+.entry .swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 9px;
+  border-radius: 50%;
+  vertical-align: 1px;
 }
 
 .entry .dur {
@@ -582,6 +592,212 @@ input:focus, select:focus, textarea:focus {
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+
+/* -------------------------------------------------------------- insights */
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.segmented button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.segmented button[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.headline {
+  display: grid;
+  gap: 2px;
+  padding: 18px 2px 10px;
+}
+
+.headline .value {
+  font-size: 38px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.headline .caption { font-size: 14px; color: var(--muted); }
+
+.chart {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  height: 156px;
+  /* The strip the tick labels live in; the plot area is what remains. */
+  --ticks: 20px;
+  padding-bottom: var(--ticks);
+  margin-bottom: 6px;
+}
+
+.chart .bar {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.chart .bar .fill {
+  width: 100%;
+  max-width: 30px;
+  min-height: 2px;
+  border-radius: 4px 4px 2px 2px;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: background 0.18s ease;
+}
+
+.chart .bar.current .fill { background: var(--accent); }
+
+.chart .bar.selected .fill {
+  background: var(--accent);
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+.chart .tick {
+  position: absolute;
+  bottom: calc(-1 * var(--ticks) + 1px);
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
+  text-align: center;
+}
+
+.chart .bar.selected .tick, .chart .bar.current .tick { color: var(--text); }
+
+/* A dashed rule at the daily goal: bars that clear it are self-evident.
+   Measured from the top of the tick strip, not the bottom of the box. */
+.goal-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--text) 34%, transparent);
+  pointer-events: none;
+}
+
+.goal-line span {
+  position: absolute;
+  right: 0;
+  top: -8px;
+  padding: 0 4px;
+  background: var(--bg);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stat-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.stat-row > div {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.stat-row .k { font-size: 11px; font-weight: 600; color: var(--faint); }
+.stat-row .v { font-size: 17px; font-weight: 640; font-variant-numeric: tabular-nums; }
+
+.project-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.project-row .name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-row .swatch {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.project-row .dur { font-variant-numeric: tabular-nums; font-weight: 640; }
+
+.project-row .track {
+  grid-column: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.project-row .track .fill { display: block; height: 100%; border-radius: 999px; }
+
+.project-row .share {
+  grid-column: 2;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- search */
+.search {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.search input { flex: 1; }
+
+.search .clear {
+  flex: none;
+  width: var(--tap);
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
 }
 
 .muted { color: var(--muted); }

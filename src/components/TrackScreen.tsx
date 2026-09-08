@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSeconds }
   from "../lib/time";
+import { projectColor } from "../lib/colors";
 import type { Entry, Snapshot } from "../lib/types";
 import { EntryRow } from "./EntryRow";
 import { PlusIcon } from "./Icons";
@@ -39,6 +40,16 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
   // One tap on the dial: no project picker, no dialog — the last project wins.
   const nextProject = running?.project ?? projects[0] ?? DEFAULT_PROJECT;
 
+  const todaySeconds = totalSeconds(todayEntries, nowMs);
+  const goal = snapshot.settings.dailyGoalMinutes * 60;
+  // The ring means one thing at a time: progress towards today's goal when
+  // there is one, otherwise a second hand for the running timer.
+  const ring = goal > 0
+    ? Math.min(todaySeconds / goal, 1) * 360
+    : running
+      ? (elapsed % 60) * 6
+      : null;
+
   const submitDraft = () => {
     const name = draft.trim();
     setDraft("");
@@ -50,12 +61,13 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
     <div className="screen">
       <div className="dial">
         <button
-          className={`dial-button${running ? " running" : ""}`}
-          // The ring around a running dial sweeps once per minute.
-          style={running ? ({ "--sweep": `${(elapsed % 60) * 6}deg` } as CSSProperties) : undefined}
+          className={`dial-button${running ? " running" : ""}${ring === null ? "" : " has-ring"}`}
           onClick={() => (running ? onStop() : onStart(nextProject))}
           aria-label={running ? `Stop tracking ${running.project}` : `Start tracking ${nextProject}`}
         >
+          {ring !== null && (
+            <span className="dial-ring" style={{ ["--sweep" as string]: `${ring}deg` }} />
+          )}
           {running ? (
             <>
               <span className="dial-time">{formatClock(elapsed)}</span>
@@ -75,7 +87,12 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
             <>
               since {hhmm(running.start)} ·
               <button onClick={onDiscard}>discard</button>
+              {goal > 0 && <> · {formatShort(todaySeconds)} of {formatShort(goal)}</>}
             </>
+          ) : goal > 0 ? (
+            `${formatShort(todaySeconds)} of ${formatShort(goal)}${
+              todaySeconds >= goal ? " — goal reached" : ""
+            }`
           ) : (
             "Tap to start — or pick a project below"
           )}
@@ -105,7 +122,7 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
             className={`chip${running?.project === project ? " active" : ""}`}
             onClick={() => (running?.project === project ? onStop() : onStart(project))}
           >
-            <span className="swatch" />
+            <span className="swatch" style={{ background: projectColor(project) }} />
             {project}
           </button>
         ))}
@@ -135,7 +152,7 @@ export function TrackScreen({ snapshot, nowMs, onStart, onStop, onDiscard, onEdi
 
       <div className="section-title">
         <span>Today</span>
-        <span>{formatShort(totalSeconds(todayEntries, nowMs))}</span>
+        <span>{formatShort(todaySeconds)}</span>
       </div>
       {todayEntries.length === 0 ? (
         <p className="empty">Nothing tracked yet today.</p>

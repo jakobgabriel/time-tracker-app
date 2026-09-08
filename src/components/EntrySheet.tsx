@@ -2,18 +2,20 @@ import { useState } from "react";
 
 import { dayKey, hhmm, localIso, withDay, withTime } from "../lib/time";
 import type { Entry } from "../lib/types";
+import { PlayIcon } from "./Icons";
 
 type Props = {
   entry: Entry;
   projects: string[];
   onSave: (entry: Entry) => void;
   onDelete: (id: string) => void;
+  onResume: (project: string) => void;
   onClose: () => void;
 };
 
 const combine = (base: string, day: string, time: string) => withDay(withTime(base, time), day);
 
-export function EntrySheet({ entry, projects, onSave, onDelete, onClose }: Props) {
+export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClose }: Props) {
   const isNew = entry.id === "";
   const [project, setProject] = useState(entry.project);
   const [note, setNote] = useState(entry.note);
@@ -148,9 +150,15 @@ export function EntrySheet({ entry, projects, onSave, onDelete, onClose }: Props
           </div>
 
           {!isNew && (
-            <button className="btn danger wide" onClick={() => onDelete(entry.id)}>
-              Delete entry
-            </button>
+            <>
+              {/* Picking up yesterday's work is one tap, not a retyped name. */}
+              <button className="btn wide" onClick={() => onResume(entry.project)}>
+                <PlayIcon /> Start this project again
+              </button>
+              <button className="btn danger wide" onClick={() => onDelete(entry.id)}>
+                Delete entry
+              </button>
+            </>
           )}
         </div>
       </div>

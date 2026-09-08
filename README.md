@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Running | History | Settings |
+| Track | Running | Insights | History |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Running](docs/screenshots/running.png) | ![History](docs/screenshots/history.png) | ![Settings](docs/screenshots/settings.png) |
+| ![Track](docs/screenshots/track.png) | ![Running](docs/screenshots/running.png) | ![Insights](docs/screenshots/insights.png) | ![History](docs/screenshots/history.png) |
 
 ## What it does
 
@@ -17,10 +17,18 @@ yourself.
   switches projects in a single tap.
 - **Never lose a session.** The elapsed time is derived from the start timestamp, so it stays
   correct while the app is backgrounded, killed, or the phone restarts.
+- **A daily goal you can read at a glance.** Set one and the ring around the start button fills
+  as the day goes on; the chart draws it as a line. With no goal, the ring becomes a second hand
+  that sweeps once a minute while a timer runs.
+- **Insights.** Week, month or all time: total against the period before it, a bar per day (tap
+  one for its figure), tracked days, average day, and where the hours actually went, per project.
 - **Fix things later.** Every entry can be edited — project, date, start, end, note, tags — or
-  added by hand for the meeting you forgot to track.
+  added by hand for the meeting you forgot to track. Search history by project, note or tag, and
+  pick an old entry back up with **Start this project again**.
 - **Obsidian, not another silo.** Sync writes real Markdown to your vault over WebDAV, so the
-  data is yours and queryable with Dataview.
+  data is yours and queryable with Dataview. **Export CSV** drops every entry next to the notes
+  for invoicing.
+- Each project keeps a colour, derived from its name, so it looks the same on every device.
 
 ## The note it writes
 
@@ -132,9 +140,17 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
 ### Options
 
 - **One note per day / month** — `2026-09-08.md` or `2026-09.md`.
-- **Round durations** — 5/6/10/15/30 minutes, applied to the synced note only. Your raw times stay
-  exact, so you can always undo it.
-- **Sync when a timer stops** — on by default; turn it off to sync manually.
+- **Round durations** — 5/6/10/15/30 minutes, applied to the synced note and the CSV only. Your raw
+  times stay exact, so you can always undo it.
+- **Daily goal** — draws today's progress around the start button and a line across the chart.
+- **Sync when a timer stops** — on by default; a sync that failed while offline is retried the next
+  time the app comes to the foreground. Turn it off to sync by hand.
+
+### Exporting
+
+**Export CSV to the vault** writes `tempo-export.csv` beside the notes — one row per entry
+(`date,start,end,hours,project,note,tags`), oldest first, regenerated whenever you press it. That
+is the file a spreadsheet or an invoicing tool wants; the Markdown notes are for reading.
 
 ## Where your data lives
 
@@ -154,9 +170,10 @@ npm install
 npm run dev             # frontend only, in a browser
 npm run tauri dev       # desktop shell (Linux needs libwebkit2gtk-4.1-dev)
 npm run build           # typecheck + production bundle
+npm test                # calendar arithmetic, buckets, project totals
 
 cd src-tauri
-cargo test              # store, markdown, sync planning and time handling
+cargo test              # store, markdown, CSV, sync planning and time handling
 cargo clippy --all-targets -- -D warnings
 ```
 
@@ -177,13 +194,16 @@ re-syncing a day without disturbing the prose around the generated block.
 ### How it fits together
 
 ```
-src/                     React UI — three screens, no router, no state library
+src/                     React UI — four screens, no router, no state library
   lib/time.ts            timestamps, durations, day and week grouping
+  lib/stats.ts           calendar arithmetic, chart buckets, project totals
+  lib/colors.ts          the colour a project gets, derived from its name
 src-tauri/src/
   lib.rs                 Tauri commands; every mutation returns a full snapshot
   store.rs               the JSON document and the rules around it
   time.rs                parsing and formatting on the Rust side
   markdown.rs            note rendering and the managed-block splice
+  csv.rs                 the export
   sync.rs                which days end up in which note
   webdav.rs              PROPFIND / MKCOL / GET / PUT
 ```

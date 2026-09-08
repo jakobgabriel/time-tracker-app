@@ -29,9 +29,28 @@ export const GearIcon = (p: Props) => (
   </svg>
 );
 
+export const ChartIcon = (p: Props) => (
+  <svg {...base} {...p}>
+    <path d="M5 20V11M12 20V5M19 20v-6" />
+  </svg>
+);
+
 export const PlusIcon = (p: Props) => (
   <svg {...base} {...p} width="18" height="18">
     <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+export const PlayIcon = (p: Props) => (
+  <svg {...base} {...p} width="18" height="18" fill="currentColor" strokeWidth={1.2}>
+    <path d="M7.5 5.2v13.6L18.8 12z" />
+  </svg>
+);
+
+export const TableIcon = (p: Props) => (
+  <svg {...base} {...p} width="18" height="18">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 10h18M9 10v10" />
   </svg>
 );
 

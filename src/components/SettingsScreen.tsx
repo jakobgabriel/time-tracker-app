@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { relativeTime } from "../lib/time";
 import type { Settings, Snapshot } from "../lib/types";
-import { CloudIcon } from "./Icons";
+import { CloudIcon, TableIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -10,12 +10,23 @@ type Props = {
   onSave: (settings: Settings) => void;
   onTest: (settings: Settings) => void;
   onSync: (full: boolean) => void;
+  onExport: () => void;
   onForgetProject: (name: string) => void;
 };
 
 const ROUNDING = [0, 5, 6, 10, 15, 30];
+const GOALS = [0, 240, 360, 420, 450, 480, 600];
 
-export function SettingsScreen({ snapshot, busy, onSave, onTest, onSync, onForgetProject }: Props) {
+const goalLabel = (minutes: number) =>
+  minutes === 0
+    ? "No goal"
+    : minutes % 60 === 0
+      ? `${minutes / 60} hours`
+      : `${Math.floor(minutes / 60)}\u00a0h ${minutes % 60} min`;
+
+export function SettingsScreen({
+  snapshot, busy, onSave, onTest, onSync, onExport, onForgetProject,
+}: Props) {
   const [form, setForm] = useState<Settings>(snapshot.settings);
 
   // Adopt what the backend confirmed, but only when it actually changed — a
@@ -146,6 +157,24 @@ export function SettingsScreen({ snapshot, busy, onSave, onTest, onSync, onForge
         </div>
 
         <div className="field">
+          <label htmlFor="goal">Daily goal</label>
+          <select
+            id="goal"
+            value={form.dailyGoalMinutes}
+            onChange={(event) => set("dailyGoalMinutes", Number(event.target.value))}
+          >
+            {GOALS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {goalLabel(minutes)}
+              </option>
+            ))}
+          </select>
+          <span className="help">
+            Draws today's progress as a ring around the start button, and a line on the chart.
+          </span>
+        </div>
+
+        <div className="field">
           <label htmlFor="tag">Tag for new notes</label>
           <input
             id="tag"
@@ -197,6 +226,13 @@ export function SettingsScreen({ snapshot, busy, onSave, onTest, onSync, onForge
             Rewrite all
           </button>
         </div>
+        <button className="btn wide" onClick={onExport} disabled={busy}>
+          <TableIcon /> Export CSV to the vault
+        </button>
+        <p className="small muted" style={{ margin: 0 }}>
+          Writes <code>tempo-export.csv</code> next to your notes — every entry, ready for a
+          spreadsheet or an invoice.
+        </p>
       </div>
 
       {snapshot.projects.length > 0 && (

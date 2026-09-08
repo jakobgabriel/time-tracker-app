@@ -25,6 +25,7 @@ fn settings() -> Settings {
         auto_sync: true,
         round_minutes: 0,
         note_tag: "time-tracking".into(),
+        daily_goal_minutes: 0,
         last_sync: None,
     }
 }

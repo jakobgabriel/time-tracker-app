@@ -18,6 +18,7 @@ export type Settings = {
   autoSync: boolean;
   roundMinutes: number;
   noteTag: string;
+  dailyGoalMinutes: number;
   lastSync: string | null;
 };
 

@@ -1,3 +1,4 @@
+pub mod csv;
 pub mod error;
 pub mod markdown;
 pub mod models;
@@ -168,6 +169,36 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     Ok(report)
 }
 
+/// Writes every closed entry to `tempo-export.csv` next to the notes — the
+/// file an invoicing tool or a spreadsheet wants, regenerated on demand.
+#[tauri::command]
+async fn export_csv(state: State<'_, AppState>) -> Result<String> {
+    let (settings, entries) =
+        state.with(|store| Ok((store.settings.clone(), store.entries.clone())))?;
+
+    let body = csv::render(&entries, settings.round_minutes)?;
+    let rows = body.lines().count().saturating_sub(1);
+    if rows == 0 {
+        return Err(AppError::Invalid("there is nothing to export yet".into()));
+    }
+
+    let dav = webdav::Dav::from_settings(&settings)?;
+    let folder = settings.vault_folder.trim().trim_matches('/').to_string();
+    if !folder.is_empty() {
+        dav.ensure_folder(&folder).await?;
+    }
+    let name = "tempo-export.csv";
+    let path = if folder.is_empty() {
+        name.to_string()
+    } else {
+        format!("{folder}/{name}")
+    };
+    dav.put(&path, body).await?;
+
+    let plural = if rows == 1 { "entry" } else { "entries" };
+    Ok(format!("Exported {rows} {plural} to {name}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -190,6 +221,7 @@ pub fn run() {
             save_settings,
             test_connection,
             sync_now,
+            export_csv,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tempo");

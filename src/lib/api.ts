@@ -26,6 +26,8 @@ export const api = {
   testConnection: (settings: Settings) => invoke<string>("test_connection", { settings }),
 
   sync: (full = false) => invoke<SyncReport>("sync_now", { full }),
+
+  exportCsv: () => invoke<string>("export_csv"),
 };
 
 /** Tauri rejects with a plain string; anything else is a genuine surprise. */

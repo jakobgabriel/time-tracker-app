@@ -1,3 +1,4 @@
+import { projectColor } from "../lib/colors";
 import { entrySeconds, formatShort, hhmm } from "../lib/time";
 import type { Entry } from "../lib/types";
 
@@ -14,7 +15,10 @@ export function EntryRow({ entry, nowMs, onClick }: Props) {
 
   return (
     <button className="entry" onClick={onClick}>
-      <span className="name">{entry.project || "Untitled"}</span>
+      <span className="name">
+        <span className="swatch" style={{ background: projectColor(entry.project) }} />
+        {entry.project || "Untitled"}
+      </span>
       {entry.end ? (
         <span className="dur">{formatShort(entrySeconds(entry, nowMs))}</span>
       ) : (

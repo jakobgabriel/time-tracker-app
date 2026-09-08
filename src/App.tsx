@@ -4,13 +4,21 @@ import { api, errorMessage } from "./lib/api";
 import { dayKey, formatShort, localIso, totalSeconds } from "./lib/time";
 import type { Entry, Settings, Snapshot } from "./lib/types";
 import { EntrySheet } from "./components/EntrySheet";
-import { GearIcon, ListIcon, TimerIcon } from "./components/Icons";
+import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
+import { InsightsScreen } from "./components/InsightsScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { Toast, useToast } from "./components/Toast";
 import { TrackScreen } from "./components/TrackScreen";
 
-type Tab = "track" | "history" | "settings";
+type Tab = "track" | "insights" | "history" | "settings";
+
+const TITLES: Record<Tab, string> = {
+  track: "Tempo",
+  insights: "Insights",
+  history: "History",
+  settings: "Settings",
+};
 
 const blankEntry = (): Entry => {
   const now = new Date();
@@ -96,6 +104,16 @@ export default function App() {
     [showToast],
   );
 
+  // A sync that failed while offline should not wait for the next stop.
+  useEffect(() => {
+    if (!snapshot?.pendingDays) return;
+    const { autoSync, webdavUrl } = snapshot.settings;
+    if (!autoSync || !webdavUrl.trim()) return;
+    const retry = () => document.visibilityState === "visible" && sync(false, true);
+    document.addEventListener("visibilitychange", retry);
+    return () => document.removeEventListener("visibilitychange", retry);
+  }, [snapshot?.pendingDays, snapshot?.settings, sync]);
+
   const stop = useCallback(async () => {
     const settings = snapshot?.settings;
     const ok = await run(() => api.stop());
@@ -124,7 +142,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>{tab === "track" ? "Tempo" : tab === "history" ? "History" : "Settings"}</h1>
+        <h1>{TITLES[tab]}</h1>
         <span className="today">
           today <b>{formatShort(todayTotal)}</b>
         </span>
@@ -141,6 +159,8 @@ export default function App() {
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
         />
       )}
+
+      {tab === "insights" && <InsightsScreen snapshot={snapshot} nowMs={nowMs} />}
 
       {tab === "history" && (
         <HistoryScreen
@@ -167,6 +187,16 @@ export default function App() {
             }
           }}
           onSync={(full) => sync(full)}
+          onExport={async () => {
+            setBusy(true);
+            try {
+              showToast(await api.exportCsv(), "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
           onForgetProject={(name) => run(() => api.deleteProject(name))}
         />
       )}
@@ -175,6 +205,13 @@ export default function App() {
         <button aria-current={tab === "track" ? "page" : undefined} onClick={() => setTab("track")}>
           <TimerIcon />
           Track
+        </button>
+        <button
+          aria-current={tab === "insights" ? "page" : undefined}
+          onClick={() => setTab("insights")}
+        >
+          <ChartIcon />
+          Insights
         </button>
         <button
           aria-current={tab === "history" ? "page" : undefined}
@@ -202,6 +239,12 @@ export default function App() {
           }}
           onDelete={async (id) => {
             if (await run(() => api.deleteEntry(id), "Deleted")) setEditing(null);
+          }}
+          onResume={async (project) => {
+            if (await run(() => api.start(project), `Tracking ${project}`)) {
+              setEditing(null);
+              setTab("track");
+            }
           }}
           onClose={() => setEditing(null)}
         />
