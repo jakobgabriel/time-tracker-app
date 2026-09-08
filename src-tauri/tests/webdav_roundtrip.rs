@@ -9,7 +9,7 @@
 //!
 //! It is `#[ignore]`d so `cargo test` stays hermetic.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tempo_lib::models::{Entry, FileLayout, Settings};
 use tempo_lib::sync::{plan, push};
@@ -42,6 +42,7 @@ fn entry(id: &str, project: &str, from: u32, to: u32) -> Entry {
 async fn writes_a_note_and_keeps_what_the_user_wrote() {
     let settings = settings();
     let days = BTreeSet::from(["2026-09-08".to_string()]);
+    let rates = BTreeMap::new();
 
     Dav::from_settings(&settings)
         .unwrap()
@@ -54,6 +55,7 @@ async fn writes_a_note_and_keeps_what_the_user_wrote() {
     push(
         &settings,
         plan(&entries, &days, &settings.file_layout).unwrap(),
+        &rates,
     )
     .await
     .expect("first push");
@@ -87,6 +89,7 @@ async fn writes_a_note_and_keeps_what_the_user_wrote() {
     push(
         &settings,
         plan(&entries, &days, &settings.file_layout).unwrap(),
+        &rates,
     )
     .await
     .expect("second push");
@@ -121,9 +124,13 @@ async fn writes_a_note_and_keeps_what_the_user_wrote() {
     );
 
     // Deleting everything for the day empties the block but keeps the note.
-    push(&settings, plan(&[], &days, &settings.file_layout).unwrap())
-        .await
-        .expect("third push");
+    push(
+        &settings,
+        plan(&[], &days, &settings.file_layout).unwrap(),
+        &rates,
+    )
+    .await
+    .expect("third push");
     let note = dav
         .get("Vault/Time Tracking/2026-09-08.md")
         .await

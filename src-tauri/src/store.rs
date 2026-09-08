@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ use crate::time::local_day;
 pub struct Store {
     pub entries: Vec<Entry>,
     pub projects: Vec<String>,
+    /// Hourly rate per project, keyed by the project's stored name.
+    pub project_rates: BTreeMap<String, f64>,
     pub settings: Settings,
     /// Local days (`YYYY-MM-DD`) whose note is out of date on the server.
     pub dirty_days: BTreeSet<String>,
@@ -67,6 +69,7 @@ impl Store {
         Snapshot {
             entries: self.entries.clone(),
             projects: self.projects.clone(),
+            project_rates: self.project_rates.clone(),
             settings,
             pending_days: self.dirty_days.len(),
         }
@@ -234,6 +237,27 @@ impl Store {
 
     pub fn delete_project(&mut self, project: &str) -> Result<()> {
         self.projects.retain(|p| p != project);
+        self.project_rates.remove(project);
+        self.save()
+    }
+
+    /// Sets what an hour of a project is worth. Zero clears it, which is how
+    /// the app goes back to never mentioning money.
+    pub fn set_rate(&mut self, project: &str, rate: f64) -> Result<()> {
+        let project = project.trim();
+        if project.is_empty() {
+            return Err(AppError::Invalid("a rate needs a project".into()));
+        }
+        if !rate.is_finite() || rate < 0.0 {
+            return Err(AppError::Invalid(
+                "a rate has to be a positive number".into(),
+            ));
+        }
+        if rate == 0.0 {
+            self.project_rates.remove(project);
+        } else {
+            self.project_rates.insert(project.to_string(), rate);
+        }
         self.save()
     }
 }

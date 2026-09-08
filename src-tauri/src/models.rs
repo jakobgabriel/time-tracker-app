@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// A single tracked interval.
@@ -54,6 +56,8 @@ pub struct Settings {
     pub auto_backup: bool,
     /// Also write a per-week roll-up note.
     pub weekly_summary: bool,
+    /// Prefixed to every amount. Money is only ever shown once a rate is set.
+    pub currency: String,
     pub last_sync: Option<String>,
 }
 
@@ -72,6 +76,7 @@ impl Default for Settings {
             max_session_minutes: 480,
             auto_backup: true,
             weekly_summary: false,
+            currency: "€".to_string(),
             last_sync: None,
         }
     }
@@ -84,6 +89,8 @@ impl Default for Settings {
 pub struct Snapshot {
     pub entries: Vec<Entry>,
     pub projects: Vec<String>,
+    /// Hourly rate per project. Absent or zero means "do not talk about money".
+    pub project_rates: BTreeMap<String, f64>,
     pub settings: Settings,
     pub pending_days: usize,
 }

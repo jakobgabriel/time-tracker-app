@@ -22,6 +22,8 @@ export const api = {
   renameProject: (from: string, to: string) =>
     invoke<Snapshot>("rename_project", { from, to }),
 
+  setRate: (project: string, rate: number) => invoke<Snapshot>("set_rate", { project, rate }),
+
   deleteProject: (name: string) => invoke<Snapshot>("delete_project", { name }),
 
   saveSettings: (settings: Settings) => invoke<Snapshot>("save_settings", { settings }),

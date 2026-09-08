@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { overlapping } from "../lib/stats";
 import { dayKey, hhmm, localIso, withDay, withTime } from "../lib/time";
 import type { Entry } from "../lib/types";
 import { PlayIcon } from "./Icons";
@@ -7,6 +8,7 @@ import { PlayIcon } from "./Icons";
 type Props = {
   entry: Entry;
   projects: string[];
+  entries: Entry[];
   onSave: (entry: Entry) => void;
   onDelete: (id: string) => void;
   onResume: (project: string) => void;
@@ -15,7 +17,9 @@ type Props = {
 
 const combine = (base: string, day: string, time: string) => withDay(withTime(base, time), day);
 
-export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClose }: Props) {
+export function EntrySheet({
+  entry, projects, entries, onSave, onDelete, onResume, onClose,
+}: Props) {
   const isNew = entry.id === "";
   const [project, setProject] = useState(entry.project);
   const [note, setNote] = useState(entry.note);
@@ -24,6 +28,7 @@ export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClos
   const [startTime, setStartTime] = useState(hhmm(entry.start));
   const [endTime, setEndTime] = useState(entry.end ? hhmm(entry.end) : "");
   const [error, setError] = useState("");
+  const [clash, setClash] = useState<Entry[]>([]);
 
   const save = () => {
     const start = combine(entry.start, day, startTime);
@@ -44,7 +49,7 @@ export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClos
       return;
     }
 
-    onSave({
+    const edited = {
       ...entry,
       // An empty id tells the backend to mint one.
       project: project.trim() || "General",
@@ -55,7 +60,17 @@ export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClos
         .filter(Boolean),
       start,
       end,
-    });
+    };
+
+    // Overlaps are usually a mistake and occasionally deliberate, so this
+    // warns once and then gets out of the way.
+    const conflicts = overlapping(edited, entries);
+    if (conflicts.length > 0 && clash.length === 0) {
+      setClash(conflicts);
+      return;
+    }
+
+    onSave(edited);
   };
 
   return (
@@ -139,6 +154,14 @@ export function EntrySheet({ entry, projects, onSave, onDelete, onResume, onClos
           </div>
 
           {error && <p className="small" style={{ color: "var(--danger)" }}>{error}</p>}
+
+          {clash.length > 0 && (
+            <div className="warn">
+              Overlaps {clash.length === 1 ? "" : `${clash.length} entries, including `}
+              <b>{clash[0].project || "Untitled"}</b> {hhmm(clash[0].start)}–
+              {clash[0].end ? hhmm(clash[0].end) : ""}. Save again to keep it anyway.
+            </div>
+          )}
 
           <div className="btn-row">
             <button className="btn" onClick={onClose}>

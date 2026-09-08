@@ -168,6 +168,9 @@ export default function App() {
           }}
           onEdit={setEditing}
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
+          onShiftStart={(entry, minutes) =>
+            run(() => api.saveEntry({ ...entry, start: plusMinutes(entry.start, minutes) }))
+          }
           onTrim={(entry, minutes) =>
             run(
               () => api.saveEntry({ ...entry, end: plusMinutes(entry.start, minutes) }),
@@ -273,6 +276,7 @@ export default function App() {
         <EntrySheet
           entry={editing}
           projects={snapshot.projects}
+          entries={snapshot.entries}
           onSave={async (entry) => {
             if (await run(() => api.saveEntry(entry), "Saved")) setEditing(null);
           }}
@@ -299,10 +303,18 @@ export default function App() {
       {project && (
         <ProjectSheet
           name={project}
-          onRename={async (to) => {
-            if (await run(() => api.renameProject(project, to), `Renamed to ${to}`)) {
-              setProject(null);
+          rate={snapshot.projectRates[project] ?? 0}
+          currency={snapshot.settings.currency}
+          onSave={async ({ name, rate }) => {
+            // Rate first, then the rename: a rename carries the rate with it.
+            if (rate !== (snapshot.projectRates[project] ?? 0)) {
+              if (!(await run(() => api.setRate(project, rate)))) return;
             }
+            if (name !== project && !(await run(() => api.renameProject(project, name)))) {
+              return;
+            }
+            showToast("Project saved", "ok");
+            setProject(null);
           }}
           onForget={async () => {
             if (await run(() => api.deleteProject(project), "Removed from the list")) {

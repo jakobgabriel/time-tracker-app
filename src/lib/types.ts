@@ -22,12 +22,14 @@ export type Settings = {
   maxSessionMinutes: number;
   autoBackup: boolean;
   weeklySummary: boolean;
+  currency: string;
   lastSync: string | null;
 };
 
 export type Snapshot = {
   entries: Entry[];
   projects: string[];
+  projectRates: Record<string, number>;
   settings: Settings;
   pendingDays: number;
 };

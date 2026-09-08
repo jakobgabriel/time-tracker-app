@@ -213,6 +213,20 @@ export function SettingsScreen({
         </div>
 
         <div className="field">
+          <label htmlFor="currency">Currency symbol</label>
+          <input
+            id="currency"
+            type="text"
+            maxLength={4}
+            value={form.currency}
+            onChange={(event) => set("currency", event.target.value)}
+          />
+          <span className="help">
+            Used wherever an amount appears. Rates are set per project, further down.
+          </span>
+        </div>
+
+        <div className="field">
           <label htmlFor="tag">Tag for new notes</label>
           <input
             id="tag"

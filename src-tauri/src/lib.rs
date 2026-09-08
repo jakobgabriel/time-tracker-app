@@ -96,6 +96,14 @@ fn rename_project(state: State<'_, AppState>, from: String, to: String) -> Resul
 }
 
 #[tauri::command]
+fn set_rate(state: State<'_, AppState>, project: String, rate: f64) -> Result<Snapshot> {
+    state.with(|store| {
+        store.set_rate(&project, rate)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
 fn delete_project(state: State<'_, AppState>, name: String) -> Result<Snapshot> {
     state.with(|store| {
         store.delete_project(&name)?;
@@ -134,7 +142,7 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
 /// `full`, every day that has entries is rewritten instead.
 #[tauri::command]
 async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> {
-    let (settings, entries, projects, days) = state.with(|store| {
+    let (settings, entries, projects, rates, days) = state.with(|store| {
         let days: BTreeSet<String> = if full {
             store
                 .entries
@@ -149,6 +157,7 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
             store.settings.clone(),
             store.entries.clone(),
             store.projects.clone(),
+            store.project_rates.clone(),
             days,
         ))
     })?;
@@ -170,11 +179,11 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     let plan = sync::plan(&entries, &days, &settings.file_layout)?;
     // The lock is released for the duration of the network round trips, so the
     // UI stays responsive and a timer can be started mid-sync.
-    let mut report = sync::push(&settings, plan).await?;
+    let mut report = sync::push(&settings, plan, &rates).await?;
 
     if settings.weekly_summary {
         let weekly = sync::weekly_plan(&entries, &days)?;
-        report.files += sync::push_into(&settings, weekly, WEEKLY_FOLDER)
+        report.files += sync::push_into(&settings, weekly, &rates, WEEKLY_FOLDER)
             .await?
             .files;
     }
@@ -265,10 +274,15 @@ async fn restore_backup(state: State<'_, AppState>) -> Result<String> {
 /// file an invoicing tool or a spreadsheet wants, regenerated on demand.
 #[tauri::command]
 async fn export_csv(state: State<'_, AppState>) -> Result<String> {
-    let (settings, entries) =
-        state.with(|store| Ok((store.settings.clone(), store.entries.clone())))?;
+    let (settings, entries, rates) = state.with(|store| {
+        Ok((
+            store.settings.clone(),
+            store.entries.clone(),
+            store.project_rates.clone(),
+        ))
+    })?;
 
-    let body = csv::render(&entries, settings.round_minutes)?;
+    let body = csv::render(&entries, settings.round_minutes, &rates)?;
     let rows = body.lines().count().saturating_sub(1);
     if rows == 0 {
         return Err(AppError::Invalid("there is nothing to export yet".into()));
@@ -310,6 +324,7 @@ pub fn run() {
             save_entry,
             delete_entry,
             rename_project,
+            set_rate,
             delete_project,
             save_settings,
             test_connection,

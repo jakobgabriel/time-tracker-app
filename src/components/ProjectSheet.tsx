@@ -5,14 +5,23 @@ import { TrashIcon } from "./Icons";
 
 type Props = {
   name: string;
-  onRename: (to: string) => void;
+  rate: number;
+  currency: string;
+  /** Applies whatever changed — a new name, a new rate, or both. */
+  onSave: (change: { name: string; rate: number }) => void;
   onForget: () => void;
   onClose: () => void;
 };
 
-export function ProjectSheet({ name, onRename, onForget, onClose }: Props) {
+export function ProjectSheet({ name, rate, currency, onSave, onForget, onClose }: Props) {
   const [value, setValue] = useState(name);
-  const changed = value.trim() !== "" && value.trim() !== name;
+  const [hourly, setHourly] = useState(rate ? String(rate) : "");
+
+  const named = value.trim();
+  const priced = Number(hourly) || 0;
+  const changed = named !== "" && (named !== name || priced !== rate);
+
+  const save = () => changed && onSave({ name: named, rate: priced });
 
   return (
     <>
@@ -32,7 +41,7 @@ export function ProjectSheet({ name, onRename, onForget, onClose }: Props) {
               type="text"
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && changed && onRename(value.trim())}
+              onKeyDown={(event) => event.key === "Enter" && save()}
             />
             <span className="help">
               Renaming updates every entry and rewrites the affected notes on the next sync. Rename
@@ -40,16 +49,33 @@ export function ProjectSheet({ name, onRename, onForget, onClose }: Props) {
             </span>
           </div>
 
+          <div className="field">
+            <label htmlFor="project-rate">Hourly rate</label>
+            <div className="prefixed">
+              <span>{currency.trim() || "per hour"}</span>
+              <input
+                id="project-rate"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="5"
+                placeholder="0"
+                value={hourly}
+                onChange={(event) => setHourly(event.target.value)}
+              />
+            </div>
+            <span className="help">
+              Leave it empty and Tempo never mentions money. With a rate, amounts appear in
+              Insights, in the CSV export and in the note's per-project table.
+            </span>
+          </div>
+
           <div className="btn-row">
             <button className="btn" onClick={onClose}>
               Cancel
             </button>
-            <button
-              className={changed ? "btn primary" : "btn"}
-              onClick={() => onRename(value.trim())}
-              disabled={!changed}
-            >
-              Rename
+            <button className={changed ? "btn primary" : "btn"} onClick={save} disabled={!changed}>
+              Save
             </button>
           </div>
 

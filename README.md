@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Insights | History | Forgotten timer |
+| Track | Insights | Filtered by a tag | Forgotten timer |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![History](docs/screenshots/history.png) | ![A timer left running](docs/screenshots/forgotten.png) |
+| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Insights filtered to one tag](docs/screenshots/insights-tag.png) | ![A timer left running](docs/screenshots/forgotten.png) |
 
 ## What it does
 
@@ -22,13 +22,20 @@ yourself.
   that sweeps once a minute while a timer runs.
 - **Insights.** Week, month or all time: total against the period before it, a bar per day (tap
   one for its figure), tracked days, average day, and where the hours actually went, per project.
+  Filter the whole screen down to a single tag — `#billable` and the chart, the totals and the
+  money all follow.
+- **Money, only if you want it.** Give a project an hourly rate and amounts appear in Insights, in
+  the CSV and in the note's per-project table. Leave rates empty and Tempo never mentions money.
 - **Fix things later.** Every entry can be edited — project, date, start, end, note, tags — or
   added by hand for the meeting you forgot to track. Search history by project, note or tag, and
   pick an old entry back up with **Start this project again**. Deleting anything offers an undo.
+  Forgot to hit start? Nudge a running timer's start by five minutes either way, right on the dial.
+  An entry that overlaps another says so once before it saves.
 - **A timer left running overnight is caught.** Past the session limit the dial turns amber and
   offers to stop now or to end the session at the limit, instead of quietly inflating the day.
-- **Projects can be renamed** — every entry follows, and the affected notes are rewritten on the
-  next sync. Renaming onto a name that already exists merges the two.
+- **Projects can be renamed and priced** — tap one in Settings. A rename takes every entry with it
+  and rewrites the affected notes on the next sync; renaming onto a name that already exists merges
+  the two.
 - **Obsidian, not another silo.** Sync writes real Markdown to your vault over WebDAV, so the
   data is yours and queryable with Dataview. Optional weekly roll-up notes, **Export CSV** for
   invoicing, and a **JSON backup** kept in the vault so a lost phone is not lost work.
@@ -72,6 +79,9 @@ TABLE tracked-hours AS "Hours"
 FROM #time-tracking
 SORT file.name DESC
 ```
+
+Once a project has an hourly rate, the block also carries `billed::` and an **Amount** column in
+the per-project table, so the same query can total a month's invoice.
 
 ## Getting the app onto your phone
 
@@ -147,6 +157,7 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
 - **Round durations** — 5/6/10/15/30 minutes, applied to the synced note and the CSV only. Your raw
   times stay exact, so you can always undo it.
 - **Daily goal** — draws today's progress around the start button and a line across the chart.
+- **Currency symbol** — whatever prefixes an amount. Rates themselves live on each project.
 - **Warn about a long session** — after 4–12 hours (or never), a running timer is flagged as
   probably forgotten.
 - **Weekly summary note** — additionally writes `Weekly/2026-W37.md`, one section per day plus the
@@ -164,8 +175,10 @@ repairs both a lost phone and a mistaken delete, and running it twice is harmles
 ### Exporting
 
 **Export CSV to the vault** writes `tempo-export.csv` beside the notes — one row per entry
-(`date,start,end,hours,project,note,tags`), oldest first, regenerated whenever you press it. That
-is the file a spreadsheet or an invoicing tool wants; the Markdown notes are for reading.
+(`date,start,end,hours,project,note,tags,rate,amount`), oldest first, regenerated whenever you
+press it. `rate` and `amount` are `0.00` for a project without a rate, so the columns never move
+around between exports. That is the file a spreadsheet or an invoicing tool wants; the Markdown
+notes are for reading.
 
 ## Where your data lives
 
@@ -213,6 +226,7 @@ src/                     React UI — four screens, no router, no state library
   lib/time.ts            timestamps, durations, day and week grouping
   lib/stats.ts           calendar arithmetic, chart buckets, project totals
   lib/colors.ts          the colour a project gets, derived from its name
+  lib/money.ts           rates, amounts and how they are written
 src-tauri/src/
   lib.rs                 Tauri commands; every mutation returns a full snapshot
   store.rs               the JSON document and the rules around it

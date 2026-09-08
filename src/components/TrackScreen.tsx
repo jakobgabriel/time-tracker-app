@@ -18,10 +18,11 @@ type Props = {
   onEdit: (entry: Entry) => void;
   onNote: (note: string) => void;
   onTrim: (entry: Entry, minutes: number) => void;
+  onShiftStart: (entry: Entry, minutes: number) => void;
 };
 
 export function TrackScreen({
-  snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim,
+  snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart,
 }: Props) {
   const { entries, projects } = snapshot;
   const running = entries.find((entry) => !entry.end);
@@ -110,8 +111,24 @@ export function TrackScreen({
         <div className="dial-hint">
           {running ? (
             <>
-              since {hhmm(running.start)} ·
-              <button onClick={onDiscard}>discard</button>
+              since {hhmm(running.start)}
+              {/* Forgot to hit start? Move the beginning, don't retype it. */}
+              <button
+                className="nudge"
+                aria-label="Started five minutes earlier"
+                onClick={() => onShiftStart(running, -5)}
+              >
+                −5
+              </button>
+              <button
+                className="nudge"
+                aria-label="Started five minutes later"
+                disabled={elapsed < 300}
+                onClick={() => onShiftStart(running, 5)}
+              >
+                +5
+              </button>
+              ·<button onClick={onDiscard}>discard</button>
               {goal > 0 && <> · {formatShort(todaySeconds)} of {formatShort(goal)}</>}
             </>
           ) : goal > 0 ? (

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::csv::rate_for;
 use crate::error::Result;
 use crate::models::Entry;
 use crate::time::{decimal_hours, format_duration, hhmm, round_seconds};
@@ -82,9 +83,20 @@ fn day_table(entries: &[Entry], round: u32) -> Result<String> {
     Ok(out)
 }
 
+/// Money is only ever mentioned once a rate exists for one of the projects in
+/// the note; an unpriced vault reads exactly as it did before.
+fn amount_of(rates: &BTreeMap<String, f64>, project: &str, seconds: i64) -> f64 {
+    decimal_hours(seconds) * rate_for(rates, project)
+}
+
 /// Builds the generated section for one note. `days` holds one group for a
 /// daily note and up to 31 for a monthly one.
-pub fn render_block(days: &[(String, Vec<Entry>)], round: u32) -> Result<String> {
+pub fn render_block(
+    days: &[(String, Vec<Entry>)],
+    round: u32,
+    rates: &BTreeMap<String, f64>,
+    currency: &str,
+) -> Result<String> {
     let all: Vec<Entry> = days.iter().flat_map(|(_, e)| e.clone()).collect();
     let mut total = 0i64;
     for entry in &all {
@@ -129,15 +141,39 @@ pub fn render_block(days: &[(String, Vec<Entry>)], round: u32) -> Result<String>
     }
 
     let per_project = totals_by_project(&all, round);
-    if per_project.len() > 1 {
-        out.push_str("\n**Per project**\n\n| Project | Duration | Hours |\n| --- | --- | --- |\n");
+    let priced = per_project
+        .iter()
+        .any(|(project, _)| rate_for(rates, project) > 0.0);
+
+    if per_project.len() > 1 || priced {
+        out.push_str("\n**Per project**\n\n| Project | Duration | Hours |");
+        if priced {
+            out.push_str(" Amount |");
+        }
+        out.push_str("\n| --- | --- | --- |");
+        if priced {
+            out.push_str(" --- |");
+        }
+        out.push('\n');
+
+        let mut billed = 0.0;
         for (project, seconds) in per_project {
             out.push_str(&format!(
-                "| {} | {} | {:.2} |\n",
+                "| {} | {} | {:.2} |",
                 cell(&project),
                 format_duration(seconds),
                 decimal_hours(seconds)
             ));
+            if priced {
+                let amount = amount_of(rates, &project, seconds);
+                billed += amount;
+                out.push_str(&format!(" {} {:.2} |", currency, amount));
+            }
+            out.push('\n');
+        }
+
+        if priced {
+            out.push_str(&format!("\nbilled:: {} {:.2}\n", currency, billed));
         }
     }
 
@@ -215,9 +251,17 @@ mod tests {
         )]
     }
 
+    fn no_rates() -> BTreeMap<String, f64> {
+        BTreeMap::new()
+    }
+
+    fn plain(days: &[(String, Vec<Entry>)], round: u32) -> String {
+        render_block(days, round, &no_rates(), "€").unwrap()
+    }
+
     #[test]
     fn renders_a_day() {
-        let block = render_block(&sample(), 0).unwrap();
+        let block = plain(&sample(), 0);
         assert!(block.starts_with(BEGIN));
         assert!(block.trim_end().ends_with(END));
         assert!(block.contains("tracked:: 2h 00m"));
@@ -237,7 +281,7 @@ mod tests {
                 "x\ny",
             )],
         )];
-        let block = render_block(&days, 0).unwrap();
+        let block = plain(&days, 0);
         assert!(block.contains(r"A\|B"));
         assert!(!block.contains("x\ny"));
         assert!(block.contains("x y"));
@@ -281,7 +325,27 @@ mod tests {
                 "",
             )],
         )];
-        let block = render_block(&days, 15).unwrap();
+        let block = plain(&days, 15);
         assert!(block.contains("| 09:00 | 09:20 | 15m | Acme |  |"));
+    }
+
+    #[test]
+    fn a_vault_without_rates_never_mentions_money() {
+        let block = plain(&sample(), 0);
+        assert!(!block.contains("Amount"));
+        assert!(!block.contains("billed::"));
+    }
+
+    #[test]
+    fn priced_projects_get_an_amount_column_and_a_billed_field() {
+        let rates = BTreeMap::from([("acme".to_string(), 120.0)]);
+        let block = render_block(&sample(), 0, &rates, "€").unwrap();
+        // 1h30m of Acme at 120 is 180; Admin has no rate and stays at zero.
+        assert!(
+            block.contains("| Acme | 1h 30m | 1.50 | € 180.00 |"),
+            "got: {block}"
+        );
+        assert!(block.contains("| Admin | 30m | 0.50 | € 0.00 |"));
+        assert!(block.contains("billed:: € 180.00"));
     }
 }

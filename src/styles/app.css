@@ -275,6 +275,20 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   text-underline-offset: 3px;
 }
 
+/* Small, but still a real tap target thanks to the padding. */
+.dial-hint .nudge {
+  margin: 0 2px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.dial-hint .nudge:disabled { opacity: 0.4; }
+
 /* ------------------------------------------------------------ project chips */
 .section-title {
   display: flex;
@@ -448,6 +462,40 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 
 .field .help { font-size: 12px; color: var(--faint); }
 
+/* A currency symbol welded to the left of the input it belongs to. */
+.prefixed {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.prefixed:focus-within {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.prefixed span {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.prefixed input {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.prefixed input:focus { box-shadow: none; }
+
 input[type="text"],
 input[type="url"],
 input[type="password"],
@@ -593,6 +641,8 @@ input:focus, select:focus, textarea:focus {
 
 .sheet .stack { display: grid; gap: 14px; }
 
+.sheet .warn { text-align: left; }
+
 /* ----------------------------------------------------------------- toast */
 .toast {
   position: fixed;
@@ -676,7 +726,31 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -0.03em;
 }
 
+.headline .earned {
+  font-size: 17px;
+  font-weight: 640;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+
 .headline .caption { font-size: 14px; color: var(--muted); }
+
+.tag-filter {
+  margin: 12px 0 2px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.tag-filter::-webkit-scrollbar { display: none; }
+
+.tag-filter .chip {
+  flex: none;
+  min-height: 36px;
+  padding: 0 13px;
+  font-size: 14px;
+}
 
 .chart {
   position: relative;
@@ -817,7 +891,10 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+
+.project-row .share b { color: var(--text); font-weight: 600; }
 
 /* --------------------------------------------------------------- search */
 .search {

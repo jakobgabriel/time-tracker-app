@@ -101,7 +101,12 @@ fn note_title(file: &str) -> &str {
 /// Pushes every planned note to the WebDAV share.
 ///
 /// `subfolder` keeps the weekly roll-ups out of the daily notes' way.
-pub async fn push_into(settings: &Settings, plan: Plan, subfolder: &str) -> Result<SyncReport> {
+pub async fn push_into(
+    settings: &Settings,
+    plan: Plan,
+    rates: &BTreeMap<String, f64>,
+    subfolder: &str,
+) -> Result<SyncReport> {
     let dav = Dav::from_settings(settings)?;
     let mut folder = settings.vault_folder.trim().trim_matches('/').to_string();
     if !subfolder.is_empty() {
@@ -120,7 +125,12 @@ pub async fn push_into(settings: &Settings, plan: Plan, subfolder: &str) -> Resu
 
     for (file, mut day_groups) in plan {
         day_groups.sort_by(|a, b| a.0.cmp(&b.0));
-        let block = markdown::render_block(&day_groups, settings.round_minutes)?;
+        let block = markdown::render_block(
+            &day_groups,
+            settings.round_minutes,
+            rates,
+            &settings.currency,
+        )?;
         let path = if folder.is_empty() {
             file.clone()
         } else {
@@ -149,8 +159,12 @@ pub async fn push_into(settings: &Settings, plan: Plan, subfolder: &str) -> Resu
     })
 }
 
-pub async fn push(settings: &Settings, plan: Plan) -> Result<SyncReport> {
-    push_into(settings, plan, "").await
+pub async fn push(
+    settings: &Settings,
+    plan: Plan,
+    rates: &BTreeMap<String, f64>,
+) -> Result<SyncReport> {
+    push_into(settings, plan, rates, "").await
 }
 
 #[cfg(test)]

@@ -1,10 +1,11 @@
 import { useState } from "react";
 
 import { projectColor } from "../lib/colors";
+import { amountOf, anyRates, formatMoney } from "../lib/money";
 import {
-  buckets, daysTracked, inPreviousRange, inRange, projectTotals, type Range,
+  buckets, daysTracked, inPreviousRange, inRange, projectTotals, tagsUsed, type Range,
 } from "../lib/stats";
-import { dayLabel, formatShort, totalSeconds } from "../lib/time";
+import { dayLabel, entrySeconds, formatShort, totalSeconds } from "../lib/time";
 import type { Snapshot } from "../lib/types";
 
 type Props = { snapshot: Snapshot; nowMs: number };
@@ -18,15 +19,28 @@ const RANGES: { key: Range; label: string; compare: string }[] = [
 export function InsightsScreen({ snapshot, nowMs }: Props) {
   const [range, setRange] = useState<Range>("week");
   const [selected, setSelected] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
 
-  const entries = inRange(snapshot.entries, range, nowMs);
-  const previous = inPreviousRange(snapshot.entries, range, nowMs);
-  const bars = buckets(snapshot.entries, range, nowMs);
+  const tags = tagsUsed(snapshot.entries);
+  // Filtering first means the chart, the totals and the money all agree.
+  const scope = tag
+    ? snapshot.entries.filter((entry) => entry.tags.includes(tag))
+    : snapshot.entries;
+
+  const entries = inRange(scope, range, nowMs);
+  const previous = inPreviousRange(scope, range, nowMs);
+  const bars = buckets(scope, range, nowMs);
   const total = totalSeconds(entries, nowMs);
   const delta = total - totalSeconds(previous, nowMs);
   const tracked = daysTracked(entries, nowMs);
   const projects = projectTotals(entries, nowMs);
   const goal = snapshot.settings.dailyGoalMinutes * 60;
+  const rates = snapshot.projectRates;
+  const priced = anyRates(rates);
+  const earned = entries.reduce(
+    (sum, entry) => sum + amountOf(rates, entry.project, entrySeconds(entry, nowMs)),
+    0,
+  );
 
   const peak = Math.max(goal, ...bars.map((bucket) => bucket.seconds), 1);
   const shown = selected ? bars.find((bucket) => bucket.key === selected) : undefined;
@@ -49,8 +63,28 @@ export function InsightsScreen({ snapshot, nowMs }: Props) {
         ))}
       </div>
 
+      {tags.length > 0 && (
+        <div className="chips tag-filter">
+          <button className={`chip${tag === null ? " active" : ""}`} onClick={() => setTag(null)}>
+            All
+          </button>
+          {tags.map((name) => (
+            <button
+              key={name}
+              className={`chip${tag === name ? " active" : ""}`}
+              onClick={() => setTag(tag === name ? null : name)}
+            >
+              #{name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="headline">
         <span className="value">{formatShort(shown ? shown.seconds : total)}</span>
+        {priced && !shown && (
+          <span className="earned">{formatMoney(earned, snapshot.settings.currency)}</span>
+        )}
         <span className="caption">
           {shown
             ? shown.key.length === 7
@@ -131,7 +165,20 @@ export function InsightsScreen({ snapshot, nowMs }: Props) {
                   }}
                 />
               </span>
-              <span className="share">{Math.round(item.share * 100)}%</span>
+              <span className="share">
+                {/* The share is always there; money joins it for a priced project,
+                    so a column never mixes two different units. */}
+                {priced && amountOf(rates, item.project, item.seconds) > 0 && (
+                  <b>
+                    {formatMoney(
+                      amountOf(rates, item.project, item.seconds),
+                      snapshot.settings.currency,
+                    )}{" "}
+                    ·{" "}
+                  </b>
+                )}
+                {Math.round(item.share * 100)}%
+              </span>
             </div>
           ))}
         </div>

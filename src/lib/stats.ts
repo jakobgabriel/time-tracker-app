@@ -142,6 +142,35 @@ export function projectTotals(entries: Entry[], nowMs: number): ProjectTotal[] {
 }
 
 /** Days with any tracked time — the denominator for a meaningful average. */
+/** Closed entries whose interval overlaps `entry`, ignoring the entry itself. */
+export function overlapping(entry: Entry, entries: Entry[]): Entry[] {
+  if (!entry.end) return [];
+  const from = new Date(entry.start).getTime();
+  const to = new Date(entry.end).getTime();
+  return entries.filter((other) => {
+    if (other.id === entry.id || !other.end) return false;
+    const otherFrom = new Date(other.start).getTime();
+    const otherTo = new Date(other.end).getTime();
+    // Touching at an endpoint is not an overlap: 09:00–10:00 and 10:00–11:00
+    // are exactly how a day is meant to look.
+    return otherFrom < to && from < otherTo;
+  });
+}
+
+/** Every tag used by these entries, most used first. */
+export function tagsUsed(entries: Entry[]): string[] {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    for (const tag of entry.tags) {
+      const clean = tag.trim();
+      if (clean) counts.set(clean, (counts.get(clean) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([tag]) => tag);
+}
+
 export function daysTracked(entries: Entry[], nowMs: number): number {
   return [...secondsByDay(entries, nowMs).values()].filter((seconds) => seconds > 0).length;
 }

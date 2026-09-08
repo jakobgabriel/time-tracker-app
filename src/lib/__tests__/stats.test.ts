@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { projectColor } from "../colors";
+import { amountOf, anyRates, formatMoney, rateFor, totalAmount } from "../money";
 import {
   addDays, addMonths, buckets, daysInMonth, daysTracked, inPreviousRange, inRange,
-  monthKey, projectTotals, rangeDays, startOfWeek,
+  monthKey, overlapping, projectTotals, rangeDays, startOfWeek, tagsUsed,
 } from "../stats";
 import { dayKey, formatShort, localIso, weekKey, withDay, withTime } from "../time";
 import type { Entry } from "../types";
@@ -142,6 +143,68 @@ describe("totals", () => {
     // Started 13:00 +02:00; NOW is 14:00 local in the test environment's zone,
     // so only the sign matters here, not the exact figure.
     expect(projectTotals([running], NOW)[0].seconds).toBeGreaterThan(0);
+  });
+});
+
+describe("overlaps", () => {
+  const nine = entry("2026-09-08", "09:00", "10:00", "Acme");
+  const ten = entry("2026-09-08", "10:00", "11:00", "Admin");
+
+  it("does not call a shared endpoint an overlap", () => {
+    expect(overlapping(nine, [ten])).toHaveLength(0);
+  });
+
+  it("finds a real clash, in either direction", () => {
+    const middle = entry("2026-09-08", "09:30", "10:30", "Deep Work");
+    expect(overlapping(middle, [nine, ten]).map((e) => e.project)).toEqual(["Acme", "Admin"]);
+    expect(overlapping(nine, [middle])).toHaveLength(1);
+  });
+
+  it("ignores itself, running timers and other days", () => {
+    expect(overlapping(nine, [nine])).toHaveLength(0);
+    expect(overlapping(nine, [{ ...ten, id: "r", start: nine.start, end: null }])).toHaveLength(0);
+    expect(overlapping(nine, [entry("2026-09-07", "09:00", "10:00")])).toHaveLength(0);
+    expect(overlapping({ ...nine, end: null }, [ten])).toHaveLength(0);
+  });
+});
+
+describe("tags", () => {
+  it("ranks tags by how often they are used", () => {
+    const tagged = (tags: string[]) => ({ ...entry("2026-09-08", "09:00", "10:00"), tags });
+    expect(tagsUsed([tagged(["billable"]), tagged(["billable", "meeting"]), tagged([" "])]))
+      .toEqual(["billable", "meeting"]);
+  });
+});
+
+describe("money", () => {
+  const rates = { "Acme Rollout": 120, Admin: 0 };
+
+  it("matches project names the way the backend does", () => {
+    expect(rateFor(rates, "acme rollout ")).toBe(120);
+    expect(rateFor(rates, "Reading")).toBe(0);
+  });
+
+  it("prices time by the hour", () => {
+    expect(amountOf(rates, "Acme Rollout", 5400)).toBeCloseTo(180);
+    expect(amountOf(rates, "Admin", 5400)).toBe(0);
+    expect(amountOf(rates, "Acme Rollout", -10)).toBe(0);
+  });
+
+  it("adds up a list of entries", () => {
+    const entries = [entry("2026-09-08", "09:00", "10:00", "Acme Rollout")];
+    expect(totalAmount(rates, entries, () => 3600)).toBeCloseTo(120);
+  });
+
+  it("stays quiet until a rate exists", () => {
+    expect(anyRates({})).toBe(false);
+    expect(anyRates({ Admin: 0 })).toBe(false);
+    expect(anyRates(rates)).toBe(true);
+  });
+
+  it("prefixes the symbol the user chose", () => {
+    // A non-breaking space, so "€ 180.00" never wraps between symbol and figure.
+    expect(formatMoney(180, "€")).toBe("€\u00a0180.00");
+    expect(formatMoney(180, "")).toBe("180.00");
   });
 });
 
