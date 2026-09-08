@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Tempo talks to the network from Rust only, so the webview needs nothing beyond the core IPC surface.",
+  "windows": ["main"],
+  "platforms": ["android", "iOS", "linux", "macOS", "windows"],
+  "permissions": ["core:default"]
+}

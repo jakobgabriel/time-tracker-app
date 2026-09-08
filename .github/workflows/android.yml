@@ -1,0 +1,96 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    branches: ["main", "claude/**"]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      # Empty unless the repository has signing secrets; decides release vs debug.
+      ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      NDK_VERSION: "27.2.12479018"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install the NDK
+        run: |
+          sdkmanager --install "ndk;$NDK_VERSION" "platforms;android-36" "build-tools;36.0.0"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Generate the Gradle project
+        run: npx tauri android init --skip-targets-install
+
+      - name: Configure release signing
+        if: env.ANDROID_KEYSTORE != ''
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 --decode > src-tauri/gen/android/keystore.jks
+          cat > src-tauri/gen/android/keystore.properties <<PROPS
+          storeFile=keystore.jks
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          storePassword=$ANDROID_STORE_PASSWORD
+          PROPS
+          node scripts/configure-signing.mjs
+
+      # Without signing secrets we still produce something installable: a debug
+      # build is signed with the standard Android debug key, a release build
+      # would not be signed at all.
+      - name: Build the APK
+        run: |
+          if [ -n "$ANDROID_KEYSTORE" ]; then
+            npx tauri android build --apk
+          else
+            npx tauri android build --apk --debug
+          fi
+
+      - name: Collect the APKs
+        run: |
+          mkdir -p artifacts
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
+          ls -lh artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tempo-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+
+      - name: Attach the APK to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.apk

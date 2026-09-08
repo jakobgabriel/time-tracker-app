@@ -1,0 +1,287 @@
+use std::collections::BTreeMap;
+
+use crate::error::Result;
+use crate::models::Entry;
+use crate::time::{decimal_hours, format_duration, hhmm, round_seconds};
+
+/// Obsidian renders `%% … %%` as an invisible comment, so the markers that
+/// delimit the generated block never show up in reading view.
+pub const BEGIN: &str = "%% tempo:begin %%";
+pub const END: &str = "%% tempo:end %%";
+
+fn cell(text: &str) -> String {
+    // A stray pipe or newline would break the table apart.
+    text.replace('\\', "\\\\")
+        .replace('|', "\\|")
+        .replace(['\n', '\r'], " ")
+        .trim()
+        .to_string()
+}
+
+fn totals_by_project(entries: &[Entry], round: u32) -> Vec<(String, i64)> {
+    let mut totals: BTreeMap<String, i64> = BTreeMap::new();
+    for entry in entries {
+        let seconds = entry_seconds(entry, round).unwrap_or(0);
+        *totals.entry(project_of(entry)).or_insert(0) += seconds;
+    }
+    let mut totals: Vec<(String, i64)> = totals.into_iter().collect();
+    totals.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    totals
+}
+
+fn project_of(entry: &Entry) -> String {
+    if entry.project.trim().is_empty() {
+        "Untitled".to_string()
+    } else {
+        entry.project.trim().to_string()
+    }
+}
+
+fn entry_seconds(entry: &Entry, round: u32) -> Result<i64> {
+    let Some(end) = entry.end.as_deref() else {
+        return Ok(0);
+    };
+    Ok(round_seconds(
+        crate::time::duration_seconds(&entry.start, end)?,
+        round,
+    ))
+}
+
+fn day_table(entries: &[Entry], round: u32) -> Result<String> {
+    let mut out = String::from(
+        "| Start | End | Duration | Project | Note |\n| --- | --- | --- | --- | --- |\n",
+    );
+    // Chronological inside a note, even though the app lists newest first.
+    let mut sorted: Vec<&Entry> = entries.iter().collect();
+    sorted.sort_by(|a, b| a.start.cmp(&b.start));
+    for entry in sorted {
+        let Some(end) = entry.end.as_deref() else {
+            continue;
+        };
+        let tags = entry
+            .tags
+            .iter()
+            .map(|t| format!("#{}", t.trim().replace(' ', "-")))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let note = match (entry.note.trim().is_empty(), tags.is_empty()) {
+            (true, true) => String::new(),
+            (true, false) => tags,
+            (false, true) => entry.note.trim().to_string(),
+            (false, false) => format!("{} {}", entry.note.trim(), tags),
+        };
+        out.push_str(&format!(
+            "| {} | {} | {} | {} | {} |\n",
+            hhmm(&entry.start)?,
+            hhmm(end)?,
+            format_duration(entry_seconds(entry, round)?),
+            cell(&project_of(entry)),
+            cell(&note),
+        ));
+    }
+    Ok(out)
+}
+
+/// Builds the generated section for one note. `days` holds one group for a
+/// daily note and up to 31 for a monthly one.
+pub fn render_block(days: &[(String, Vec<Entry>)], round: u32) -> Result<String> {
+    let all: Vec<Entry> = days.iter().flat_map(|(_, e)| e.clone()).collect();
+    let mut total = 0i64;
+    for entry in &all {
+        total += entry_seconds(entry, round)?;
+    }
+
+    let mut out = String::new();
+    out.push_str(BEGIN);
+    out.push_str("\n## ⏱ Time tracking\n\n");
+    // Inline Dataview fields — queryable without touching the note's own front matter.
+    out.push_str(&format!(
+        "tracked:: {}\ntracked-hours:: {:.2}\n\n",
+        format_duration(total),
+        decimal_hours(total)
+    ));
+
+    if all.is_empty() {
+        out.push_str("_No time tracked._\n");
+        out.push_str(END);
+        out.push('\n');
+        return Ok(out);
+    }
+
+    if days.len() == 1 {
+        out.push_str(&day_table(&days[0].1, round)?);
+    } else {
+        for (day, entries) in days {
+            if entries.is_empty() {
+                continue;
+            }
+            let mut day_total = 0i64;
+            for entry in entries {
+                day_total += entry_seconds(entry, round)?;
+            }
+            out.push_str(&format!(
+                "### {} — {}\n\n{}\n",
+                day,
+                format_duration(day_total),
+                day_table(entries, round)?
+            ));
+        }
+    }
+
+    let per_project = totals_by_project(&all, round);
+    if per_project.len() > 1 {
+        out.push_str("\n**Per project**\n\n| Project | Duration | Hours |\n| --- | --- | --- |\n");
+        for (project, seconds) in per_project {
+            out.push_str(&format!(
+                "| {} | {} | {:.2} |\n",
+                cell(&project),
+                format_duration(seconds),
+                decimal_hours(seconds)
+            ));
+        }
+    }
+
+    out.push('\n');
+    out.push_str(END);
+    out.push('\n');
+    Ok(out)
+}
+
+/// Splices the generated block into a note.
+///
+/// Anything the user wrote outside the markers is preserved verbatim — that is
+/// the whole point of syncing into a daily note instead of owning the file.
+pub fn merge(existing: Option<&str>, block: &str, title: &str, note_tag: &str) -> String {
+    let Some(existing) = existing else {
+        let mut out = String::new();
+        if !note_tag.trim().is_empty() {
+            out.push_str(&format!("---\ntags:\n  - {}\n---\n\n", note_tag.trim()));
+        }
+        out.push_str(&format!("# {title}\n\n"));
+        out.push_str(block);
+        return out;
+    };
+
+    match (existing.find(BEGIN), existing.find(END)) {
+        (Some(start), Some(end)) if end > start => {
+            let mut out = String::with_capacity(existing.len() + block.len());
+            out.push_str(&existing[..start]);
+            out.push_str(block.trim_end());
+            out.push_str(&existing[end + END.len()..]);
+            out
+        }
+        _ => {
+            // No markers yet: append, never guess where the user wants it.
+            let mut out = existing.trim_end().to_string();
+            out.push_str("\n\n");
+            out.push_str(block);
+            out
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(project: &str, start: &str, end: &str, note: &str) -> Entry {
+        Entry {
+            id: format!("{project}-{start}"),
+            project: project.into(),
+            note: note.into(),
+            tags: vec![],
+            start: start.into(),
+            end: Some(end.into()),
+        }
+    }
+
+    fn sample() -> Vec<(String, Vec<Entry>)> {
+        vec![(
+            "2026-09-08".to_string(),
+            vec![
+                entry(
+                    "Acme",
+                    "2026-09-08T09:00:00+02:00",
+                    "2026-09-08T10:30:00+02:00",
+                    "kickoff",
+                ),
+                entry(
+                    "Admin",
+                    "2026-09-08T11:00:00+02:00",
+                    "2026-09-08T11:30:00+02:00",
+                    "",
+                ),
+            ],
+        )]
+    }
+
+    #[test]
+    fn renders_a_day() {
+        let block = render_block(&sample(), 0).unwrap();
+        assert!(block.starts_with(BEGIN));
+        assert!(block.trim_end().ends_with(END));
+        assert!(block.contains("tracked:: 2h 00m"));
+        assert!(block.contains("tracked-hours:: 2.00"));
+        assert!(block.contains("| 09:00 | 10:30 | 1h 30m | Acme | kickoff |"));
+        assert!(block.contains("**Per project**"));
+    }
+
+    #[test]
+    fn escapes_pipes_so_tables_survive() {
+        let days = vec![(
+            "2026-09-08".to_string(),
+            vec![entry(
+                "A|B",
+                "2026-09-08T09:00:00+02:00",
+                "2026-09-08T10:00:00+02:00",
+                "x\ny",
+            )],
+        )];
+        let block = render_block(&days, 0).unwrap();
+        assert!(block.contains(r"A\|B"));
+        assert!(!block.contains("x\ny"));
+        assert!(block.contains("x y"));
+    }
+
+    #[test]
+    fn creates_a_note_with_front_matter() {
+        let note = merge(None, "BLOCK", "2026-09-08", "time-tracking");
+        assert!(note.starts_with("---\ntags:\n  - time-tracking\n---"));
+        assert!(note.contains("# 2026-09-08"));
+        assert!(note.ends_with("BLOCK"));
+    }
+
+    #[test]
+    fn replaces_only_the_managed_block() {
+        let existing = format!(
+            "---\ntags: [daily]\n---\n\n# Monday\n\nMy own notes.\n\n{BEGIN}\nold\n{END}\n\nFooter I wrote.\n"
+        );
+        let merged = merge(Some(&existing), &format!("{BEGIN}\nnew\n{END}\n"), "x", "t");
+        assert!(merged.contains("My own notes."));
+        assert!(merged.contains("Footer I wrote."));
+        assert!(merged.contains("new"));
+        assert!(!merged.contains("old"));
+        assert_eq!(merged.matches(BEGIN).count(), 1);
+    }
+
+    #[test]
+    fn appends_when_the_note_has_no_markers() {
+        let merged = merge(Some("# Monday\n\nNotes.\n"), "BLOCK", "x", "t");
+        assert_eq!(merged, "# Monday\n\nNotes.\n\nBLOCK");
+    }
+
+    #[test]
+    fn rounding_applies_to_the_report_only() {
+        let days = vec![(
+            "2026-09-08".to_string(),
+            vec![entry(
+                "Acme",
+                "2026-09-08T09:00:00+02:00",
+                "2026-09-08T09:20:00+02:00",
+                "",
+            )],
+        )];
+        let block = render_block(&days, 15).unwrap();
+        assert!(block.contains("| 09:00 | 09:20 | 15m | Acme |  |"));
+    }
+}
