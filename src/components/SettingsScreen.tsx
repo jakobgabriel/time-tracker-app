@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { projectColor } from "../lib/colors";
 import { relativeTime } from "../lib/time";
@@ -27,7 +27,30 @@ const goalLabel = (minutes: number) =>
     ? "No goal"
     : minutes % 60 === 0
       ? `${minutes / 60} hours`
-      : `${Math.floor(minutes / 60)}\u00a0h ${minutes % 60} min`;
+      : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+
+/** A collapsible section; the summary carries the state so it can stay shut. */
+function Section({
+  title,
+  status,
+  open,
+  children,
+}: {
+  title: string;
+  status: string;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details className="section" open={open}>
+      <summary>
+        <span className="name">{title}</span>
+        <span className="status">{status}</span>
+      </summary>
+      <div className="body">{children}</div>
+    </details>
+  );
+}
 
 export function SettingsScreen({
   snapshot, busy, onSave, onTest, onSync, onExport, onImport, onBackup, onRestore, onOpenProject,
@@ -43,13 +66,16 @@ export function SettingsScreen({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  return (
-    <div className="screen">
-      <div className="section-title">
-        <span>Obsidian via WebDAV</span>
-      </div>
+  const connected = snapshot.settings.webdavUrl.trim();
+  const rates = Object.values(snapshot.projectRates).filter((rate) => rate > 0).length;
 
-      <div className="card">
+  return (
+    <div className="screen settings">
+      <Section
+        title="Obsidian"
+        status={connected ? new URL(connected).host : "not connected"}
+        open={!connected}
+      >
         <div className="field">
           <label htmlFor="url">Server URL</label>
           <input
@@ -103,32 +129,22 @@ export function SettingsScreen({
             value={form.vaultFolder}
             onChange={(event) => set("vaultFolder", event.target.value)}
           />
-          <span className="help">Created automatically if it does not exist.</span>
+          <span className="help">
+            Holds the notes, the backup and the exports. Created if it does not exist.
+          </span>
         </div>
 
-        <div className="btn-row">
-          <button
-            className="btn"
-            onClick={() => onTest(form)}
-            disabled={busy || !form.webdavUrl.trim()}
-          >
-            Test
-          </button>
-          <button
-            className={dirty ? "btn primary" : "btn"}
-            onClick={() => onSave(form)}
-            disabled={!dirty}
-          >
-            {dirty ? "Save" : "Saved"}
-          </button>
-        </div>
-      </div>
+        <button className="btn wide" onClick={() => onTest(form)} disabled={busy || !form.webdavUrl.trim()}>
+          Test the connection
+        </button>
+      </Section>
 
-      <div className="section-title">
-        <span>Notes</span>
-      </div>
-
-      <div className="card">
+      <Section
+        title="Notes"
+        status={`${form.fileLayout === "daily" ? "one per day" : "one per month"}${
+          form.notePattern.trim() ? " · custom path" : ""
+        }`}
+      >
         <div className="field">
           <label htmlFor="layout">One note per</label>
           <select
@@ -136,7 +152,7 @@ export function SettingsScreen({
             value={form.fileLayout}
             onChange={(event) => set("fileLayout", event.target.value as Settings["fileLayout"])}
           >
-            <option value="daily">Day — 2026-09-08.md</option>
+            <option value="daily">Day — 2026-09-09.md</option>
             <option value="monthly">Month — 2026-09.md</option>
           </select>
           <span className="help">
@@ -146,21 +162,90 @@ export function SettingsScreen({
         </div>
 
         <div className="field">
-          <label htmlFor="round">Round durations</label>
-          <select
-            id="round"
-            value={form.roundMinutes}
-            onChange={(event) => set("roundMinutes", Number(event.target.value))}
-          >
-            {ROUNDING.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes === 0 ? "Exact" : `${minutes} minutes`}
-              </option>
-            ))}
-          </select>
-          <span className="help">Applies to the synced note only — your raw times are kept.</span>
+          <label htmlFor="pattern">Note path</label>
+          <input
+            id="pattern"
+            type="text"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="Daily/{YYYY}/{YYYY-MM-DD}.md"
+            value={form.notePattern}
+            onChange={(event) => set("notePattern", event.target.value)}
+          />
+          <span className="help">
+            Leave empty to keep the notes in the folder above. Set it to write into the daily notes
+            your vault already has — relative to the WebDAV root. Placeholders:{" "}
+            <code>{"{YYYY} {MM} {DD} {YYYY-MM-DD} {YYYY-MM} {MMM} {MMMM} {YYYY-Www} {ww}"}</code>
+          </span>
         </div>
 
+        <div className="switch">
+          <span>
+            Weekly summary note
+            <br />
+            <span className="small muted">A roll-up per ISO week.</span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.weeklySummary}
+            aria-label="Weekly summary note"
+            onClick={() => set("weeklySummary", !form.weeklySummary)}
+          />
+        </div>
+
+        {form.weeklySummary && (
+          <div className="field">
+            <label htmlFor="weekly-pattern">Weekly note path</label>
+            <input
+              id="weekly-pattern"
+              type="text"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="Weekly/{YYYY-Www}.md"
+              value={form.weeklyPattern}
+              onChange={(event) => set("weeklyPattern", event.target.value)}
+            />
+            <span className="help">Empty keeps a Weekly folder inside the vault folder.</span>
+          </div>
+        )}
+
+        <div className="switch">
+          <span>
+            Link projects
+            <br />
+            <span className="small muted">
+              Writes <code>[[Acme]]</code>, so the vault builds a note per project.
+            </span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.linkProjects}
+            aria-label="Link projects as wikilinks"
+            onClick={() => set("linkProjects", !form.linkProjects)}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="tag">Tag for new notes</label>
+          <input
+            id="tag"
+            type="text"
+            autoCapitalize="none"
+            value={form.noteTag}
+            onChange={(event) => set("noteTag", event.target.value)}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Tracking"
+        status={[
+          form.dailyGoalMinutes ? goalLabel(form.dailyGoalMinutes) : "no goal",
+          form.roundMinutes ? `${form.roundMinutes} min rounding` : "exact",
+        ].join(" · ")}
+      >
         <div className="field">
           <label htmlFor="goal">Daily goal</label>
           <select
@@ -192,42 +277,40 @@ export function SettingsScreen({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="round">Round durations</label>
+          <select
+            id="round"
+            value={form.roundMinutes}
+            onChange={(event) => set("roundMinutes", Number(event.target.value))}
+          >
+            {ROUNDING.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes === 0 ? "Exact" : `${minutes} minutes`}
+              </option>
+            ))}
+          </select>
           <span className="help">
-            A timer left running overnight is offered a sensible end time instead of quietly
-            inflating the day.
+            Applies to the note and the CSV only — your raw times stay exact.
           </span>
         </div>
 
         <div className="switch">
           <span>
-            Link projects
+            Split at midnight
             <br />
             <span className="small muted">
-              Writes <code>[[Acme]]</code> instead of plain text, so the vault builds a note per
-              project.
+              A session running past midnight counts on both days.
             </span>
           </span>
           <button
             className="track"
             role="switch"
-            aria-checked={form.linkProjects}
-            aria-label="Link projects as wikilinks"
-            onClick={() => set("linkProjects", !form.linkProjects)}
-          />
-        </div>
-
-        <div className="switch">
-          <span>
-            Weekly summary note
-            <br />
-            <span className="small muted">A roll-up per ISO week in a Weekly folder.</span>
-          </span>
-          <button
-            className="track"
-            role="switch"
-            aria-checked={form.weeklySummary}
-            aria-label="Weekly summary note"
-            onClick={() => set("weeklySummary", !form.weeklySummary)}
+            aria-checked={form.splitAtMidnight}
+            aria-label="Split sessions at midnight"
+            onClick={() => set("splitAtMidnight", !form.splitAtMidnight)}
           />
         </div>
 
@@ -241,26 +324,27 @@ export function SettingsScreen({
             onChange={(event) => set("currency", event.target.value)}
           />
           <span className="help">
-            Used wherever an amount appears. Rates are set per project, further down.
+            {rates > 0
+              ? `Used wherever an amount appears. ${rates} project(s) have a rate.`
+              : "Amounts only appear once a project has an hourly rate — set one below."}
           </span>
         </div>
+      </Section>
 
-        <div className="field">
-          <label htmlFor="tag">Tag for new notes</label>
-          <input
-            id="tag"
-            type="text"
-            autoCapitalize="none"
-            value={form.noteTag}
-            onChange={(event) => set("noteTag", event.target.value)}
-          />
-        </div>
-
+      <Section
+        title="Sync"
+        status={
+          snapshot.pendingDays > 0
+            ? `${snapshot.pendingDays} day(s) waiting`
+            : `synced ${relativeTime(snapshot.settings.lastSync)}`
+        }
+        open
+      >
         <div className="switch">
           <span>
             Sync when a timer stops
             <br />
-            <span className="small muted">Otherwise sync by hand below.</span>
+            <span className="small muted">A failed sync is retried when you come back.</span>
           </span>
           <button
             className="track"
@@ -271,24 +355,6 @@ export function SettingsScreen({
           />
         </div>
 
-        <button
-          className={dirty ? "btn primary wide" : "btn wide"}
-          onClick={() => onSave(form)}
-          disabled={!dirty}
-        >
-          {dirty ? "Save changes" : "All changes saved"}
-        </button>
-      </div>
-
-      <div className="section-title">
-        <span>Sync</span>
-      </div>
-
-      <div className="card">
-        <p className="small muted" style={{ margin: 0 }}>
-          Last sync {relativeTime(snapshot.settings.lastSync)}
-          {snapshot.pendingDays > 0 && ` · ${snapshot.pendingDays} day(s) waiting`}
-        </p>
         <div className="btn-row">
           <button className="btn primary" onClick={() => onSync(false)} disabled={busy}>
             <CloudIcon className={busy ? "spin" : undefined} /> Sync now
@@ -297,6 +363,7 @@ export function SettingsScreen({
             Rewrite all
           </button>
         </div>
+
         <div className="btn-row">
           <button className="btn" onClick={onExport} disabled={busy}>
             <TableIcon /> Export CSV
@@ -306,17 +373,12 @@ export function SettingsScreen({
           </button>
         </div>
         <p className="small muted" style={{ margin: 0 }}>
-          Export writes <code>tempo-export.csv</code> next to your notes — every entry, ready for a
-          spreadsheet or an invoice. Import reads <code>tempo-import.csv</code> from the same folder
-          and adds whatever this device is missing.
+          Export writes <code>tempo-export.csv</code>; import reads <code>tempo-import.csv</code>{" "}
+          from the same folder and adds whatever this device is missing.
         </p>
-      </div>
+      </Section>
 
-      <div className="section-title">
-        <span>Backup</span>
-      </div>
-
-      <div className="card">
+      <Section title="Backup" status={form.autoBackup ? "on every sync" : "manual"}>
         <div className="switch">
           <span>
             Back up on every sync
@@ -345,23 +407,20 @@ export function SettingsScreen({
           Restoring merges the backup into this device: entries it does not have are added, nothing
           here is overwritten.
         </p>
-        <button
-          className={dirty ? "btn primary wide" : "btn wide"}
-          onClick={() => onSave(form)}
-          disabled={!dirty}
-        >
-          {dirty ? "Save changes" : "All changes saved"}
-        </button>
-      </div>
+      </Section>
 
-      {snapshot.projects.length > 0 && (
-        <>
-          <div className="section-title">
-            <span>Projects</span>
-          </div>
-          <div className="card">
+      <Section
+        title="Projects"
+        status={`${snapshot.projects.length}${snapshot.pinned.length ? ` · ${snapshot.pinned.length} pinned` : ""}`}
+      >
+        {snapshot.projects.length === 0 ? (
+          <p className="small muted" style={{ margin: 0 }}>
+            Projects appear here once you have tracked something.
+          </p>
+        ) : (
+          <>
             <p className="small muted" style={{ margin: 0 }}>
-              Tap a project to rename, merge or remove it.
+              Tap a project to rename, price, tag, pin or remove it.
             </p>
             <div className="chips">
               {snapshot.projects.map((name) => (
@@ -371,11 +430,19 @@ export function SettingsScreen({
                 </button>
               ))}
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </Section>
 
-      <p className="small muted" style={{ marginTop: 22, textAlign: "center" }}>
+      <button
+        className={dirty ? "btn primary wide save" : "btn wide save"}
+        onClick={() => onSave(form)}
+        disabled={!dirty}
+      >
+        {dirty ? "Save changes" : "All changes saved"}
+      </button>
+
+      <p className="small muted" style={{ marginTop: 18, textAlign: "center" }}>
         Tempo 0.1 · data stays on this device until you sync
       </p>
     </div>

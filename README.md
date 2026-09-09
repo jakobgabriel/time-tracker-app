@@ -46,7 +46,8 @@ yourself.
 - **Obsidian, not another silo.** Sync writes real Markdown to your vault over WebDAV, so the
   data is yours and queryable with Dataview. Optional weekly roll-up notes, **Export CSV** for
   invoicing, and a **JSON backup** kept in the vault so a lost phone is not lost work.
-- Each project keeps a colour, derived from its name, so it looks the same on every device.
+- Each project keeps a colour, derived from its name, so it looks the same on every device, and can
+  carry tags it applies automatically — `#billable` on the client work, without remembering.
 
 ## The note it writes
 
@@ -161,6 +162,12 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
 ### Options
 
 - **One note per day / month** — `2026-09-08.md` or `2026-09.md`.
+- **Note path** — a pattern like `Daily/{YYYY}/{YYYY-MM-DD}.md`, relative to the WebDAV root, so
+  Tempo writes into the daily notes your vault already has instead of its own folder. Placeholders:
+  `{YYYY} {MM} {DD} {YYYY-MM-DD} {YYYY-MM} {MMM} {MMMM} {YYYY-Www} {ww}`. Leave it empty to keep
+  everything in the folder above. The weekly roll-up takes its own pattern.
+- **Split at midnight** — a session running 23:00–01:00 is stored as two entries, so each day's
+  total is its own. On by default.
 - **Round durations** — 5/6/10/15/30 minutes, applied to the synced note and the CSV only. Your raw
   times stay exact, so you can always undo it.
 - **Daily goal** — draws today's progress around the start button and a line across the chart.

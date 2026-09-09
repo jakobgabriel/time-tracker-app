@@ -18,6 +18,8 @@ pub struct Store {
     pub project_rates: BTreeMap<String, f64>,
     /// Projects kept at the front of the quick list, in the order pinned.
     pub pinned: Vec<String>,
+    /// Tags applied automatically when a project's timer starts.
+    pub auto_tags: BTreeMap<String, Vec<String>>,
     pub settings: Settings,
     /// Local days (`YYYY-MM-DD`) whose note is out of date on the server.
     pub dirty_days: BTreeSet<String>,
@@ -73,6 +75,7 @@ impl Store {
             projects: self.projects.clone(),
             project_rates: self.project_rates.clone(),
             pinned: self.pinned.clone(),
+            auto_tags: self.auto_tags.clone(),
             settings,
             pending_days: self.dirty_days.len(),
         }
@@ -93,6 +96,44 @@ impl Store {
         self.projects.truncate(24);
     }
 
+    /// The tags a project always carries, plus whatever was passed in.
+    fn with_auto_tags(&self, project: &str, mut tags: Vec<String>) -> Vec<String> {
+        let rule = self
+            .auto_tags
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(project.trim()));
+        if let Some((_, automatic)) = rule {
+            for tag in automatic {
+                if !tags
+                    .iter()
+                    .any(|existing| existing.eq_ignore_ascii_case(tag))
+                {
+                    tags.push(tag.clone());
+                }
+            }
+        }
+        tags
+    }
+
+    /// Sets (or with an empty list, clears) a project's automatic tags.
+    pub fn set_auto_tags(&mut self, project: &str, tags: Vec<String>) -> Result<()> {
+        let project = project.trim().to_string();
+        if project.is_empty() {
+            return Err(AppError::Invalid("a rule needs a project".into()));
+        }
+        let tags: Vec<String> = tags
+            .into_iter()
+            .map(|tag| tag.trim().trim_start_matches('#').to_string())
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        if tags.is_empty() {
+            self.auto_tags.remove(&project);
+        } else {
+            self.auto_tags.insert(project, tags);
+        }
+        self.save()
+    }
+
     /// Stops whatever is running and starts a new interval. Returns the new entry.
     pub fn start(
         &mut self,
@@ -102,6 +143,7 @@ impl Store {
         now: &str,
     ) -> Result<Entry> {
         self.stop(now)?;
+        let tags = self.with_auto_tags(project, tags);
         let entry = Entry {
             id: uuid::Uuid::new_v4().to_string(),
             project: project.trim().to_string(),
@@ -132,8 +174,57 @@ impl Store {
         self.entries[index].end = Some(now.to_string());
         let entry = self.entries[index].clone();
         self.mark_dirty(&entry)?;
+
+        if self.settings.split_at_midnight {
+            self.cut_at_midnight(index)?;
+        }
+
+        let entry = self.entries[index].clone();
         self.save()?;
         Ok(Some(entry))
+    }
+
+    /// Cuts an entry that ran past midnight into one piece per day, so a night
+    /// shift lands on the days it was actually worked rather than all on the
+    /// day it started.
+    fn cut_at_midnight(&mut self, index: usize) -> Result<()> {
+        let mut current = self.entries[index].clone();
+        let mut pieces: Vec<Entry> = Vec::new();
+
+        while let Some(end) = current.end.clone() {
+            let start_day = local_day(&current.start)?;
+            if start_day == local_day(&end)? {
+                break;
+            }
+            // Midnight in the offset the session started in.
+            let midnight = format!(
+                "{}T00:00:00{}",
+                crate::time::next_day(&start_day)?,
+                &current.start[19..]
+            );
+            if crate::time::duration_seconds(&current.start, &midnight)? <= 0 {
+                break; // a nonsensical offset; leave the entry whole
+            }
+
+            let mut before = current.clone();
+            before.end = Some(midnight.clone());
+            pieces.push(before);
+
+            current.id = uuid::Uuid::new_v4().to_string();
+            current.start = midnight;
+        }
+
+        if pieces.is_empty() {
+            return Ok(());
+        }
+
+        self.entries[index] = pieces.remove(0);
+        for piece in pieces.into_iter().chain(std::iter::once(current)) {
+            self.mark_dirty(&piece)?;
+            self.entries.push(piece);
+        }
+        self.sort();
+        Ok(())
     }
 
     pub fn discard_running(&mut self) -> Result<()> {
@@ -198,6 +289,22 @@ impl Store {
         for entry in &touched {
             self.mark_dirty(entry)?;
         }
+
+        // Everything attached to the old name follows it. The target keeps its
+        // own rate and tags when it already has them: merging into a priced
+        // project must not silently reprice it.
+        if let Some(rate) = self.project_rates.remove(from.trim()) {
+            self.project_rates.entry(to.clone()).or_insert(rate);
+        }
+        if let Some(tags) = self.auto_tags.remove(from.trim()) {
+            self.auto_tags.entry(to.clone()).or_insert(tags);
+        }
+        for pin in self.pinned.iter_mut() {
+            if pin.eq_ignore_ascii_case(from.trim()) {
+                *pin = to.clone();
+            }
+        }
+        self.pinned.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
 
         self.projects
             .retain(|p| !p.eq_ignore_ascii_case(from.trim()));
@@ -538,6 +645,47 @@ mod tests {
     }
 
     #[test]
+    fn a_rename_takes_the_rate_the_tags_and_the_pin_along() {
+        let (mut store, _dir) = store();
+        store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.set_rate("Acme", 120.0).unwrap();
+        store
+            .set_auto_tags("Acme", vec!["billable".into()])
+            .unwrap();
+        store.toggle_pin("Acme").unwrap();
+
+        store.rename_project("Acme", "Acme GmbH").unwrap();
+
+        assert_eq!(store.project_rates.get("Acme GmbH"), Some(&120.0));
+        assert_eq!(
+            store.auto_tags.get("Acme GmbH"),
+            Some(&vec!["billable".to_string()])
+        );
+        assert_eq!(store.pinned, vec!["Acme GmbH".to_string()]);
+        assert!(!store.project_rates.contains_key("Acme"));
+    }
+
+    #[test]
+    fn merging_into_a_priced_project_keeps_the_target_rate() {
+        let (mut store, _dir) = store();
+        store.start("Admin", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.start("Amdin", "", vec![], &at(10, 0)).unwrap();
+        store.stop(&at(11, 0)).unwrap();
+        store.set_rate("Admin", 80.0).unwrap();
+        store.set_rate("Amdin", 999.0).unwrap();
+
+        store.rename_project("Amdin", "Admin").unwrap();
+        assert_eq!(
+            store.project_rates.get("Admin"),
+            Some(&80.0),
+            "the typo does not reprice"
+        );
+        assert!(!store.project_rates.contains_key("Amdin"));
+    }
+
+    #[test]
     fn a_project_needs_a_name() {
         let (mut store, _dir) = store();
         assert!(store.rename_project("Acme", "  ").is_err());
@@ -595,6 +743,92 @@ mod tests {
         // A second import of the same CSV mints new ids for the same sessions.
         assert_eq!(store.merge(vec![imported("second")], vec![]).unwrap(), 0);
         assert_eq!(store.entries.len(), 1);
+    }
+
+    #[test]
+    fn a_night_shift_lands_on_both_days() {
+        let (mut store, _dir) = store();
+        store.settings.split_at_midnight = true;
+        store
+            .start("Acme", "night", vec![], "2026-09-08T22:00:00+02:00")
+            .unwrap();
+        store.stop("2026-09-09T01:30:00+02:00").unwrap();
+
+        let mut pieces: Vec<&Entry> = store.entries.iter().collect();
+        pieces.sort_by(|a, b| a.start.cmp(&b.start));
+        assert_eq!(pieces.len(), 2);
+        assert_eq!(pieces[0].end.as_deref(), Some("2026-09-09T00:00:00+02:00"));
+        assert_eq!(pieces[1].start, "2026-09-09T00:00:00+02:00");
+        assert_eq!(pieces[1].end.as_deref(), Some("2026-09-09T01:30:00+02:00"));
+        assert_eq!(pieces[1].note, "night", "both halves are the same session");
+        assert_eq!(
+            store.dirty_days,
+            BTreeSet::from(["2026-09-08".to_string(), "2026-09-09".to_string()]),
+            "both notes have to be written"
+        );
+    }
+
+    #[test]
+    fn a_session_across_two_midnights_becomes_three_days() {
+        let (mut store, _dir) = store();
+        store.settings.split_at_midnight = true;
+        store
+            .start("Acme", "", vec![], "2026-09-08T22:00:00+02:00")
+            .unwrap();
+        store.stop("2026-09-10T02:00:00+02:00").unwrap();
+        assert_eq!(store.entries.len(), 3);
+    }
+
+    #[test]
+    fn midnight_splitting_can_be_turned_off() {
+        let (mut store, _dir) = store();
+        store.settings.split_at_midnight = false;
+        store
+            .start("Acme", "", vec![], "2026-09-08T22:00:00+02:00")
+            .unwrap();
+        store.stop("2026-09-09T01:30:00+02:00").unwrap();
+        assert_eq!(store.entries.len(), 1);
+    }
+
+    #[test]
+    fn a_days_own_session_is_left_alone() {
+        let (mut store, _dir) = store();
+        store.settings.split_at_midnight = true;
+        store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(17, 0)).unwrap();
+        assert_eq!(store.entries.len(), 1);
+    }
+
+    #[test]
+    fn a_project_can_carry_its_own_tags() {
+        let (mut store, _dir) = store();
+        store
+            .set_auto_tags("Acme", vec!["#billable".into(), " ".into()])
+            .unwrap();
+
+        let entry = store
+            .start("acme", "", vec!["meeting".into()], &at(9, 0))
+            .unwrap();
+        assert_eq!(
+            entry.tags,
+            vec!["meeting".to_string(), "billable".to_string()]
+        );
+
+        // The rule never doubles a tag that is already there.
+        let again = store
+            .start("Acme", "", vec!["billable".into()], &at(10, 0))
+            .unwrap();
+        assert_eq!(again.tags, vec!["billable".to_string()]);
+
+        // Another project is unaffected, and clearing the rule stops it.
+        let other = store.start("Admin", "", vec![], &at(11, 0)).unwrap();
+        assert!(other.tags.is_empty());
+        store.set_auto_tags("Acme", vec![]).unwrap();
+        assert!(store
+            .start("Acme", "", vec![], &at(12, 0))
+            .unwrap()
+            .tags
+            .is_empty());
     }
 
     #[test]

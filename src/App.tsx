@@ -341,13 +341,25 @@ export default function App() {
           rate={snapshot.projectRates[project] ?? 0}
           currency={snapshot.settings.currency}
           pinned={snapshot.pinned.some((name) => name.toLowerCase() === project.toLowerCase())}
+          autoTags={
+            Object.entries(snapshot.autoTags).find(
+              ([name]) => name.toLowerCase() === project.toLowerCase(),
+            )?.[1] ?? []
+          }
           onTogglePin={async () => {
             if (await run(() => api.togglePin(project))) setProject(null);
           }}
-          onSave={async ({ name, rate }) => {
-            // Rate first, then the rename: a rename carries the rate with it.
+          onSave={async ({ name, rate, autoTags }) => {
+            // Rate and tags first, then the rename: a rename carries them along.
             if (rate !== (snapshot.projectRates[project] ?? 0)) {
               if (!(await run(() => api.setRate(project, rate)))) return;
+            }
+            const currentTags =
+              Object.entries(snapshot.autoTags).find(
+                ([existing]) => existing.toLowerCase() === project.toLowerCase(),
+              )?.[1] ?? [];
+            if (autoTags.join(",") !== currentTags.join(",")) {
+              if (!(await run(() => api.setAutoTags(project, autoTags)))) return;
             }
             if (name !== project && !(await run(() => api.renameProject(project, name)))) {
               return;

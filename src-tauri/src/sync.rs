@@ -18,6 +18,45 @@ fn note_name(day: &str, layout: &FileLayout) -> String {
     }
 }
 
+/// Where a note actually lands: the vault's own pattern when one is set,
+/// otherwise Tempo's folder.
+fn resolve(settings: &Settings, pattern: &str, file: &str, subfolder: &str) -> Result<String> {
+    if !pattern.trim().is_empty() {
+        // The day the file is named after is enough to expand the pattern.
+        let day = match file.strip_suffix(".md").unwrap_or(file) {
+            stem if stem.len() == 7 => format!("{stem}-01"), // a month note
+            stem if stem.contains("-W") => week_start(stem)?,
+            stem => stem.to_string(),
+        };
+        return crate::paths::expand(pattern, &day);
+    }
+
+    let mut folder = settings.vault_folder.trim().trim_matches('/').to_string();
+    if !subfolder.is_empty() {
+        folder = if folder.is_empty() {
+            subfolder.to_string()
+        } else {
+            format!("{folder}/{subfolder}")
+        };
+    }
+    Ok(if folder.is_empty() {
+        file.to_string()
+    } else {
+        format!("{folder}/{file}")
+    })
+}
+
+/// The Monday of an ISO week key, so a weekly pattern can use date placeholders.
+fn week_start(week: &str) -> Result<String> {
+    let (year, number) = week
+        .split_once("-W")
+        .ok_or_else(|| crate::error::AppError::Invalid(format!("not a week: {week}")))?;
+    let (year, number): (i32, u32) = (year.parse().unwrap_or(1970), number.parse().unwrap_or(1));
+    let monday = chrono::NaiveDate::from_isoywd_opt(year, number, chrono::Weekday::Mon)
+        .ok_or_else(|| crate::error::AppError::Invalid(format!("not a week: {week}")))?;
+    Ok(monday.format("%Y-%m-%d").to_string())
+}
+
 /// Groups the entries that belong in each note.
 ///
 /// A monthly note is rewritten in full whenever any of its days changed —
@@ -108,17 +147,11 @@ pub async fn push_into(
     subfolder: &str,
 ) -> Result<SyncReport> {
     let dav = Dav::from_settings(settings)?;
-    let mut folder = settings.vault_folder.trim().trim_matches('/').to_string();
-    if !subfolder.is_empty() {
-        folder = if folder.is_empty() {
-            subfolder.to_string()
-        } else {
-            format!("{folder}/{subfolder}")
-        };
-    }
-    if !folder.is_empty() {
-        dav.ensure_folder(&folder).await?;
-    }
+    let pattern = if subfolder.is_empty() {
+        settings.note_pattern.clone()
+    } else {
+        settings.weekly_pattern.clone()
+    };
 
     let days = plan.values().map(|days| days.len()).sum();
     let files = plan.len();
@@ -132,11 +165,10 @@ pub async fn push_into(
             &settings.currency,
             settings.link_projects,
         )?;
-        let path = if folder.is_empty() {
-            file.clone()
-        } else {
-            format!("{folder}/{file}")
-        };
+        let path = resolve(settings, &pattern, &file, subfolder)?;
+        if let Some(folder) = crate::paths::parent(&path) {
+            dav.ensure_folder(&folder).await?;
+        }
 
         let existing = dav.get(&path).await?;
         // Nothing to add and nothing to clean up: leave the note alone rather

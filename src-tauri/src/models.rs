@@ -58,6 +58,14 @@ pub struct Settings {
     pub weekly_summary: bool,
     /// Write project names as `[[wikilinks]]` so the vault builds a graph.
     pub link_projects: bool,
+    /// Where the daily/monthly notes go. Empty keeps `<folder>/<date>.md`.
+    /// Placeholders: {YYYY} {MM} {DD} {YYYY-MM-DD} {YYYY-MM} {MMM} {MMMM}
+    /// {YYYY-Www} {ww} — relative to the WebDAV root, not the vault folder.
+    pub note_pattern: String,
+    /// The same for the weekly roll-ups; empty keeps `<folder>/Weekly/<week>.md`.
+    pub weekly_pattern: String,
+    /// Cut a session that runs past midnight so each day's total is its own.
+    pub split_at_midnight: bool,
     /// Prefixed to every amount. Money is only ever shown once a rate is set.
     pub currency: String,
     pub last_sync: Option<String>,
@@ -79,6 +87,9 @@ impl Default for Settings {
             auto_backup: true,
             weekly_summary: false,
             link_projects: false,
+            note_pattern: String::new(),
+            weekly_pattern: String::new(),
+            split_at_midnight: true,
             currency: "€".to_string(),
             last_sync: None,
         }
@@ -96,6 +107,8 @@ pub struct Snapshot {
     pub project_rates: BTreeMap<String, f64>,
     /// Projects held at the front of the quick list.
     pub pinned: Vec<String>,
+    /// Tags a project applies to every new session.
+    pub auto_tags: BTreeMap<String, Vec<String>>,
     pub settings: Settings,
     pub pending_days: usize,
 }

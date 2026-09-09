@@ -3,6 +3,7 @@ pub mod csv;
 pub mod error;
 pub mod markdown;
 pub mod models;
+pub mod paths;
 pub mod store;
 pub mod sync;
 pub mod time;
@@ -99,6 +100,18 @@ fn rename_project(state: State<'_, AppState>, from: String, to: String) -> Resul
 fn set_rate(state: State<'_, AppState>, project: String, rate: f64) -> Result<Snapshot> {
     state.with(|store| {
         store.set_rate(&project, rate)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
+fn set_auto_tags(
+    state: State<'_, AppState>,
+    project: String,
+    tags: Vec<String>,
+) -> Result<Snapshot> {
+    state.with(|store| {
+        store.set_auto_tags(&project, tags)?;
         Ok(store.snapshot())
     })
 }
@@ -388,6 +401,7 @@ pub fn run() {
             delete_entry,
             rename_project,
             set_rate,
+            set_auto_tags,
             toggle_pin,
             split_entry,
             merge_with_next,

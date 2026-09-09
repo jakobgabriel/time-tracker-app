@@ -8,24 +8,34 @@ type Props = {
   rate: number;
   currency: string;
   pinned: boolean;
-  /** Applies whatever changed — a new name, a new rate, or both. */
-  onSave: (change: { name: string; rate: number }) => void;
+  autoTags: string[];
+  /** Applies whatever changed — a new name, rate, or set of automatic tags. */
+  onSave: (change: { name: string; rate: number; autoTags: string[] }) => void;
   onTogglePin: () => void;
   onForget: () => void;
   onClose: () => void;
 };
 
 export function ProjectSheet({
-  name, rate, currency, pinned, onSave, onTogglePin, onForget, onClose,
+  name, rate, currency, pinned, autoTags, onSave, onTogglePin, onForget, onClose,
 }: Props) {
   const [value, setValue] = useState(name);
   const [hourly, setHourly] = useState(rate ? String(rate) : "");
+  const [tags, setTags] = useState(autoTags.join(", "));
 
   const named = value.trim();
   const priced = Number(hourly) || 0;
-  const changed = named !== "" && (named !== name || priced !== rate);
+  const parsedTags = tags
+    .split(",")
+    .map((tag) => tag.trim().replace(/^#/, ""))
+    .filter(Boolean);
+  const changed =
+    named !== "" &&
+    (named !== name ||
+      priced !== rate ||
+      parsedTags.join(",") !== autoTags.join(","));
 
-  const save = () => changed && onSave({ name: named, rate: priced });
+  const save = () => changed && onSave({ name: named, rate: priced, autoTags: parsedTags });
 
   return (
     <>
@@ -71,6 +81,20 @@ export function ProjectSheet({
             <span className="help">
               Leave it empty and Tempo never mentions money. With a rate, amounts appear in
               Insights, in the CSV export and in the note's per-project table.
+            </span>
+          </div>
+
+          <div className="field">
+            <label htmlFor="auto-tags">Always tag with</label>
+            <input
+              id="auto-tags"
+              type="text"
+              value={tags}
+              onChange={(event) => setTags(event.target.value)}
+              placeholder="billable"
+            />
+            <span className="help">
+              Added to every new session on this project, so a tag stops depending on memory.
             </span>
           </div>
 

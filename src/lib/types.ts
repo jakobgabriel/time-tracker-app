@@ -23,6 +23,9 @@ export type Settings = {
   autoBackup: boolean;
   weeklySummary: boolean;
   linkProjects: boolean;
+  notePattern: string;
+  weeklyPattern: string;
+  splitAtMidnight: boolean;
   currency: string;
   lastSync: string | null;
 };
@@ -32,6 +35,7 @@ export type Snapshot = {
   projects: string[];
   projectRates: Record<string, number>;
   pinned: string[];
+  autoTags: Record<string, string[]>;
   settings: Settings;
   pendingDays: number;
 };

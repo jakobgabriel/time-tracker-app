@@ -21,6 +21,15 @@ pub fn iso_week(day: &str) -> Result<String> {
     Ok(format!("{}-W{:02}", week.year(), week.week()))
 }
 
+/// The day after `day`, as `YYYY-MM-DD`.
+pub fn next_day(day: &str) -> Result<String> {
+    let date = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .map_err(|_| AppError::Invalid(format!("not a valid day: {day}")))?;
+    Ok((date + chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string())
+}
+
 pub fn local_month(day: &str) -> String {
     day.chars().take(7).collect()
 }

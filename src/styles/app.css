@@ -658,6 +658,70 @@ input:focus, select:focus, textarea:focus {
 .btn-row { display: flex; gap: 10px; }
 .btn-row > * { flex: 1; }
 
+/* -------------------------------------------------------------- settings */
+.settings { display: grid; gap: 10px; align-content: start; }
+
+/* `overflow: hidden` on a <details> clips its own content in Chromium when it
+   is a grid item, so the rounding lives on the parts instead of the box. */
+.section {
+  display: block;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.section summary {
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.section summary::-webkit-details-marker { display: none; }
+
+.section summary .name { font-size: 15px; font-weight: 650; }
+
+.section summary .status {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A chevron that turns, so the closed state does not look like a dead row. */
+.section summary::after {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border-right: 2px solid var(--faint);
+  border-bottom: 2px solid var(--faint);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.18s ease;
+}
+
+.section[open] summary::after { transform: rotate(-135deg); }
+.section[open] summary {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.section .body {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.settings .save { margin-top: 8px; }
+
 /* ----------------------------------------------------------------- sheet */
 .scrim {
   position: fixed;
