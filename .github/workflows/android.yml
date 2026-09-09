@@ -54,6 +54,9 @@ jobs:
       - name: Generate the Gradle project
         run: npx tauri android init --skip-targets-install
 
+      - name: Install the ongoing-notification plugin
+        run: node scripts/configure-android-notification.mjs
+
       - name: Configure release signing
         if: env.ANDROID_KEYSTORE != ''
         run: |

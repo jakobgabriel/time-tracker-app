@@ -74,7 +74,11 @@ export default function App() {
   const run = useCallback(
     async (action: () => Promise<Snapshot>, success?: string) => {
       try {
-        setSnapshot(await action());
+        const next = await action();
+        setSnapshot(next);
+        // The notification is a view of the store, so it is refreshed from the
+        // one place every change goes through.
+        api.refreshNotification();
         if (success) showToast(success, "ok");
         return true;
       } catch (error) {

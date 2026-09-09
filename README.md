@@ -94,6 +94,24 @@ SORT file.name DESC
 Once a project has an hourly rate, the block also carries `billed::` and an **Amount** column in
 the per-project table, so the same query can total a month's invoice.
 
+## The ongoing notification (unverified)
+
+On Android a running timer is meant to appear in the notification shade, counting up, with a
+quick-settings tile that shows whether anything is running. The Kotlin for it lives in
+`src-tauri/android/notification/` and is copied into the generated project by
+`scripts/configure-android-notification.mjs`, which CI runs after `tauri android init` — the same
+arrangement as the signing config, since `src-tauri/gen/android` is not checked in.
+
+**This is the one part of the app that has never run.** There is no Android SDK in the environment
+it was written in and CI has not produced an APK yet, so the Kotlin has not been compiled, let
+alone tested on a device. The Rust side is behind `#[cfg(target_os = "android")]` and the desktop
+build is unaffected; the notification failing is logged and never touches the timer. Treat the
+first real build as the start of debugging this.
+
+Its action opens the app rather than claiming to stop the timer. Stopping from the shade needs the
+launch intent plumbed through to the webview, which is the first thing to add once there is a build
+to test against.
+
 ## First run
 
 The first launch walks through three questions — what you track, your vault, and how notes should

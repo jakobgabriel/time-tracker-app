@@ -51,6 +51,9 @@ export const api = {
 
   sync: (full = false) => invoke<SyncReport>("sync_now", { full }),
 
+  /** Brings the Android notification in line with the timer; no-op elsewhere. */
+  refreshNotification: () => invoke<void>("refresh_notification").catch(() => {}),
+
   exportCsv: () => invoke<string>("export_csv"),
 
   importCsv: () => invoke<string>("import_csv"),

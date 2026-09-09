@@ -4,6 +4,7 @@ pub mod error;
 pub mod invoice;
 pub mod markdown;
 pub mod models;
+pub mod notify;
 pub mod paths;
 pub mod store;
 pub mod sync;
@@ -487,9 +488,53 @@ async fn export_csv(state: State<'_, AppState>) -> Result<String> {
     Ok(format!("Exported {rows} {plural} to {name}"))
 }
 
+/// Registers the Android half of the ongoing notification. On every other
+/// platform this is an empty plugin that exists so the command below has
+/// something to talk to.
+fn notification_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("tempo-notify")
+        .setup(|_app, _api| {
+            #[cfg(target_os = "android")]
+            {
+                let handle =
+                    _api.register_android_plugin("com.jakobgabriel.tempo", "NotifyPlugin")?;
+                _app.manage(handle);
+            }
+            Ok(())
+        })
+        .build()
+}
+
+/// Brings the notification in line with what is running. Called after every
+/// change to the timer; a no-op away from Android.
+#[tauri::command]
+fn refresh_notification(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<()> {
+    let running = state.with(|store| {
+        Ok(store
+            .entries
+            .iter()
+            .find(|entry| entry.end.is_none())
+            .cloned())
+    })?;
+
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        if let Some(handle) = app.try_state::<tauri::plugin::PluginHandle<tauri::Wry>>() {
+            notify::update(&handle, running.as_ref());
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, running);
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(notification_plugin())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             let store = Store::load(&dir.join("tempo.json"))?;
@@ -519,6 +564,7 @@ pub fn run() {
             save_settings,
             test_connection,
             sync_now,
+            refresh_notification,
             export_csv,
             import_csv,
             backup_now,
