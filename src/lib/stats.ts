@@ -157,6 +157,19 @@ export function overlapping(entry: Entry, entries: Entry[]): Entry[] {
   });
 }
 
+/** Pinned projects first, in the order they were pinned; then by recency. */
+export function orderedProjects(projects: string[], pinned: string[]): string[] {
+  const isPinned = (name: string) =>
+    pinned.findIndex((p) => p.toLowerCase() === name.toLowerCase());
+  return [...projects].sort((a, b) => {
+    const [ap, bp] = [isPinned(a), isPinned(b)];
+    if (ap === -1 && bp === -1) return 0; // both unpinned: keep recency order
+    if (ap === -1) return 1;
+    if (bp === -1) return -1;
+    return ap - bp;
+  });
+}
+
 /** Every tag used by these entries, most used first. */
 export function tagsUsed(entries: Entry[]): string[] {
   const counts = new Map<string, number>();

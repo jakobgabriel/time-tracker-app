@@ -713,6 +713,27 @@ input:focus, select:focus, textarea:focus {
 
 .sheet .warn { text-align: left; }
 
+/* The editing tools sit apart from the fields: they act at once, not on save. */
+.sheet .tools {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.sheet .split {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.sheet .split svg { flex: none; color: var(--faint); }
+.sheet .split input { flex: 1; min-width: 0; }
+.sheet .split .btn { flex: none; padding: 0 14px; }
+
 /* ----------------------------------------------------------------- toast */
 .toast {
   position: fixed;

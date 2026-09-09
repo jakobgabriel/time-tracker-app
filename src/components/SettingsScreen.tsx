@@ -200,6 +200,24 @@ export function SettingsScreen({
 
         <div className="switch">
           <span>
+            Link projects
+            <br />
+            <span className="small muted">
+              Writes <code>[[Acme]]</code> instead of plain text, so the vault builds a note per
+              project.
+            </span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.linkProjects}
+            aria-label="Link projects as wikilinks"
+            onClick={() => set("linkProjects", !form.linkProjects)}
+          />
+        </div>
+
+        <div className="switch">
+          <span>
             Weekly summary note
             <br />
             <span className="small muted">A roll-up per ISO week in a Weekly folder.</span>

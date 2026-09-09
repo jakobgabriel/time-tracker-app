@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Insights | Filtered by a tag | Filling a gap |
+| Track | Insights | Editing an entry | Filling a gap |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Insights filtered to one tag](docs/screenshots/insights-tag.png) | ![Tapping a gap opens a prefilled entry](docs/screenshots/fill-gap.png) |
+| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Splitting and merging an entry](docs/screenshots/entry-tools.png) | ![Tapping a gap opens a prefilled entry](docs/screenshots/fill-gap.png) |
 
 ## What it does
 
@@ -36,9 +36,13 @@ yourself.
   An entry that overlaps another says so once before it saves.
 - **A timer left running overnight is caught.** Past the session limit the dial turns amber and
   offers to stop now or to end the session at the limit, instead of quietly inflating the day.
-- **Projects can be renamed and priced** — tap one in Settings. A rename takes every entry with it
-  and rewrites the affected notes on the next sync; renaming onto a name that already exists merges
-  the two.
+- **Projects can be renamed, priced and pinned** — tap one in Settings. A rename takes every entry
+  with it and rewrites the affected notes on the next sync; renaming onto a name that already
+  exists merges the two. Pinning holds a project at the front of the chips; the start button still
+  repeats whatever you tracked last, so a pin never changes what one tap does.
+- **Split and merge entries.** A block that turned out to be two things splits at a time you pick;
+  two sessions of the same project merge back into one, keeping both notes and both sets of tags.
+  Splitting and merging back leaves exactly what you started with.
 - **Obsidian, not another silo.** Sync writes real Markdown to your vault over WebDAV, so the
   data is yours and queryable with Dataview. Optional weekly roll-up notes, **Export CSV** for
   invoicing, and a **JSON backup** kept in the vault so a lost phone is not lost work.
@@ -165,6 +169,8 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
   probably forgotten.
 - **Weekly summary note** — additionally writes `Weekly/2026-W37.md`, one section per day plus the
   week's per-project totals. A week is rewritten whole, so it never drifts from the daily notes.
+- **Link projects** — writes `[[Acme Rollout]]` instead of plain text, so the vault grows a note
+  per project and the graph connects your hours to your work.
 - **Sync when a timer stops** — on by default; a sync that failed while offline is retried the next
   time the app comes to the foreground. Turn it off to sync by hand.
 

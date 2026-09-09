@@ -104,6 +104,30 @@ fn set_rate(state: State<'_, AppState>, project: String, rate: f64) -> Result<Sn
 }
 
 #[tauri::command]
+fn toggle_pin(state: State<'_, AppState>, project: String) -> Result<Snapshot> {
+    state.with(|store| {
+        store.toggle_pin(&project)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
+fn split_entry(state: State<'_, AppState>, id: String, at: String) -> Result<Snapshot> {
+    state.with(|store| {
+        store.split(&id, &at)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
+fn merge_with_next(state: State<'_, AppState>, id: String) -> Result<Snapshot> {
+    state.with(|store| {
+        store.merge_with_next(&id)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
 fn delete_project(state: State<'_, AppState>, name: String) -> Result<Snapshot> {
     state.with(|store| {
         store.delete_project(&name)?;
@@ -364,6 +388,9 @@ pub fn run() {
             delete_entry,
             rename_project,
             set_rate,
+            toggle_pin,
+            split_entry,
+            merge_with_next,
             delete_project,
             save_settings,
             test_connection,

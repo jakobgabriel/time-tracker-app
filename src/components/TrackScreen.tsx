@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSeconds }
   from "../lib/time";
 import { projectColor } from "../lib/colors";
+import { orderedProjects } from "../lib/stats";
 import type { Entry, Snapshot } from "../lib/types";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
@@ -26,7 +27,8 @@ type Props = {
 export function TrackScreen({
   snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart, onFillGap,
 }: Props) {
-  const { entries, projects } = snapshot;
+  const { entries } = snapshot;
+  const projects = orderedProjects(snapshot.projects, snapshot.pinned);
   const running = entries.find((entry) => !entry.end);
   const elapsed = running ? entrySeconds(running, nowMs) : 0;
   const today = dayKey(localIso(new Date(nowMs)));
@@ -44,7 +46,9 @@ export function TrackScreen({
   }, [adding]);
 
   // One tap on the dial: no project picker, no dialog — the last project wins.
-  const nextProject = running?.project ?? projects[0] ?? DEFAULT_PROJECT;
+  // Deliberately the raw list, not the pinned order: a pin arranges the chips,
+  // it does not quietly change what the button repeats.
+  const nextProject = running?.project ?? snapshot.projects[0] ?? DEFAULT_PROJECT;
 
   const todaySeconds = totalSeconds(todayEntries, nowMs);
   const goal = snapshot.settings.dailyGoalMinutes * 60;

@@ -1,19 +1,23 @@
 import { useState } from "react";
 
 import { projectColor } from "../lib/colors";
-import { TrashIcon } from "./Icons";
+import { PinIcon, TrashIcon } from "./Icons";
 
 type Props = {
   name: string;
   rate: number;
   currency: string;
+  pinned: boolean;
   /** Applies whatever changed — a new name, a new rate, or both. */
   onSave: (change: { name: string; rate: number }) => void;
+  onTogglePin: () => void;
   onForget: () => void;
   onClose: () => void;
 };
 
-export function ProjectSheet({ name, rate, currency, onSave, onForget, onClose }: Props) {
+export function ProjectSheet({
+  name, rate, currency, pinned, onSave, onTogglePin, onForget, onClose,
+}: Props) {
   const [value, setValue] = useState(name);
   const [hourly, setHourly] = useState(rate ? String(rate) : "");
 
@@ -78,6 +82,13 @@ export function ProjectSheet({ name, rate, currency, onSave, onForget, onClose }
               Save
             </button>
           </div>
+
+          <button className="btn wide" onClick={onTogglePin}>
+            <PinIcon /> {pinned ? "Unpin from the top" : "Pin to the top"}
+          </button>
+          <p className="small muted" style={{ margin: "-6px 0 0", textAlign: "center" }}>
+            Pinning arranges the chips. The start button still repeats whatever you tracked last.
+          </p>
 
           <button className="btn danger wide" onClick={onForget}>
             <TrashIcon /> Remove from the quick list

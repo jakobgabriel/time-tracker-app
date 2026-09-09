@@ -56,6 +56,8 @@ pub struct Settings {
     pub auto_backup: bool,
     /// Also write a per-week roll-up note.
     pub weekly_summary: bool,
+    /// Write project names as `[[wikilinks]]` so the vault builds a graph.
+    pub link_projects: bool,
     /// Prefixed to every amount. Money is only ever shown once a rate is set.
     pub currency: String,
     pub last_sync: Option<String>,
@@ -76,6 +78,7 @@ impl Default for Settings {
             max_session_minutes: 480,
             auto_backup: true,
             weekly_summary: false,
+            link_projects: false,
             currency: "€".to_string(),
             last_sync: None,
         }
@@ -91,6 +94,8 @@ pub struct Snapshot {
     pub projects: Vec<String>,
     /// Hourly rate per project. Absent or zero means "do not talk about money".
     pub project_rates: BTreeMap<String, f64>,
+    /// Projects held at the front of the quick list.
+    pub pinned: Vec<String>,
     pub settings: Settings,
     pub pending_days: usize,
 }

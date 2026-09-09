@@ -10,6 +10,21 @@ use crate::time::{decimal_hours, format_duration, hhmm, round_seconds};
 pub const BEGIN: &str = "%% tempo:begin %%";
 pub const END: &str = "%% tempo:end %%";
 
+/// A project as it appears in a table cell: plain text, or a wikilink when the
+/// vault would rather have a note per project.
+fn project_cell(project: &str, link: bool) -> String {
+    if !link {
+        return cell(project);
+    }
+    // `|`, `[` and `]` all mean something inside a wikilink, and none of them
+    // survive a table cell either; a link target has to do without them.
+    let target = project.replace(['|', '[', ']'], " ");
+    format!(
+        "[[{}]]",
+        target.split_whitespace().collect::<Vec<_>>().join(" ")
+    )
+}
+
 fn cell(text: &str) -> String {
     // A stray pipe or newline would break the table apart.
     text.replace('\\', "\\\\")
@@ -48,7 +63,7 @@ fn entry_seconds(entry: &Entry, round: u32) -> Result<i64> {
     ))
 }
 
-fn day_table(entries: &[Entry], round: u32) -> Result<String> {
+fn day_table(entries: &[Entry], round: u32, link: bool) -> Result<String> {
     let mut out = String::from(
         "| Start | End | Duration | Project | Note |\n| --- | --- | --- | --- | --- |\n",
     );
@@ -76,7 +91,7 @@ fn day_table(entries: &[Entry], round: u32) -> Result<String> {
             hhmm(&entry.start)?,
             hhmm(end)?,
             format_duration(entry_seconds(entry, round)?),
-            cell(&project_of(entry)),
+            project_cell(&project_of(entry), link),
             cell(&note),
         ));
     }
@@ -96,6 +111,7 @@ pub fn render_block(
     round: u32,
     rates: &BTreeMap<String, f64>,
     currency: &str,
+    link_projects: bool,
 ) -> Result<String> {
     let all: Vec<Entry> = days.iter().flat_map(|(_, e)| e.clone()).collect();
     let mut total = 0i64;
@@ -121,7 +137,7 @@ pub fn render_block(
     }
 
     if days.len() == 1 {
-        out.push_str(&day_table(&days[0].1, round)?);
+        out.push_str(&day_table(&days[0].1, round, link_projects)?);
     } else {
         for (day, entries) in days {
             if entries.is_empty() {
@@ -135,7 +151,7 @@ pub fn render_block(
                 "### {} — {}\n\n{}\n",
                 day,
                 format_duration(day_total),
-                day_table(entries, round)?
+                day_table(entries, round, link_projects)?
             ));
         }
     }
@@ -160,7 +176,7 @@ pub fn render_block(
         for (project, seconds) in per_project {
             out.push_str(&format!(
                 "| {} | {} | {:.2} |",
-                cell(&project),
+                project_cell(&project, link_projects),
                 format_duration(seconds),
                 decimal_hours(seconds)
             ));
@@ -256,7 +272,7 @@ mod tests {
     }
 
     fn plain(days: &[(String, Vec<Entry>)], round: u32) -> String {
-        render_block(days, round, &no_rates(), "€").unwrap()
+        render_block(days, round, &no_rates(), "€", false).unwrap()
     }
 
     #[test]
@@ -268,6 +284,31 @@ mod tests {
         assert!(block.contains("tracked-hours:: 2.00"));
         assert!(block.contains("| 09:00 | 10:30 | 1h 30m | Acme | kickoff |"));
         assert!(block.contains("**Per project**"));
+    }
+
+    #[test]
+    fn links_projects_when_the_vault_wants_a_note_per_project() {
+        let block = render_block(&sample(), 0, &no_rates(), "€", true).unwrap();
+        assert!(block.contains("| [[Acme]] | kickoff |"), "got: {block}");
+        assert!(
+            block.contains("| [[Admin]] | 30m |"),
+            "the summary links too"
+        );
+    }
+
+    #[test]
+    fn a_link_target_drops_characters_a_wikilink_cannot_hold() {
+        let days = vec![(
+            "2026-09-08".to_string(),
+            vec![entry(
+                "A|B [x]",
+                "2026-09-08T09:00:00+02:00",
+                "2026-09-08T10:00:00+02:00",
+                "",
+            )],
+        )];
+        let block = render_block(&days, 0, &no_rates(), "€", true).unwrap();
+        assert!(block.contains("[[A B x]]"), "got: {block}");
     }
 
     #[test]
@@ -339,7 +380,7 @@ mod tests {
     #[test]
     fn priced_projects_get_an_amount_column_and_a_billed_field() {
         let rates = BTreeMap::from([("acme".to_string(), 120.0)]);
-        let block = render_block(&sample(), 0, &rates, "€").unwrap();
+        let block = render_block(&sample(), 0, &rates, "€", false).unwrap();
         // 1h30m of Acme at 120 is 180; Admin has no rate and stays at zero.
         assert!(
             block.contains("| Acme | 1h 30m | 1.50 | € 180.00 |"),

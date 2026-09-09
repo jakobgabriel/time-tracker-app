@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 import { overlapping } from "../lib/stats";
-import { dayKey, hhmm, localIso, withDay, withTime } from "../lib/time";
+import { dayKey, hhmm, localIso, minutesBetween, plusMinutes, withDay, withTime } from "../lib/time";
 import type { Entry } from "../lib/types";
-import { PlayIcon } from "./Icons";
+import { MergeIcon, PlayIcon, SplitIcon } from "./Icons";
 
 type Props = {
   entry: Entry;
@@ -12,13 +12,15 @@ type Props = {
   onSave: (entry: Entry) => void;
   onDelete: (id: string) => void;
   onResume: (project: string) => void;
+  onSplit: (id: string, at: string) => void;
+  onMerge: (id: string) => void;
   onClose: () => void;
 };
 
 const combine = (base: string, day: string, time: string) => withDay(withTime(base, time), day);
 
 export function EntrySheet({
-  entry, projects, entries, onSave, onDelete, onResume, onClose,
+  entry, projects, entries, onSave, onDelete, onResume, onSplit, onMerge, onClose,
 }: Props) {
   const isNew = entry.id === "";
   const [project, setProject] = useState(entry.project);
@@ -29,6 +31,24 @@ export function EntrySheet({
   const [endTime, setEndTime] = useState(entry.end ? hhmm(entry.end) : "");
   const [error, setError] = useState("");
   const [clash, setClash] = useState<Entry[]>([]);
+
+  // Both tools act on the entry as stored, not on unsaved edits in this form.
+  const stored = entry.end;
+  const [splitAt, setSplitAt] = useState(() =>
+    stored ? hhmm(plusMinutes(entry.start, minutesBetween(entry.start, stored) / 2)) : "",
+  );
+
+  const nextOfProject = stored
+    ? entries
+        .filter(
+          (other) =>
+            other.id !== entry.id &&
+            other.end &&
+            other.start >= stored &&
+            other.project.trim().toLowerCase() === entry.project.trim().toLowerCase(),
+        )
+        .sort((a, b) => a.start.localeCompare(b.start))[0]
+    : undefined;
 
   const save = () => {
     const start = combine(entry.start, day, startTime);
@@ -171,6 +191,35 @@ export function EntrySheet({
               Save
             </button>
           </div>
+
+          {!isNew && stored && (
+            <div className="tools">
+              <div className="split">
+                <SplitIcon />
+                <span>Split at</span>
+                <input
+                  type="time"
+                  value={splitAt}
+                  onChange={(event) => setSplitAt(event.target.value)}
+                  aria-label="Split the entry at this time"
+                />
+                <button
+                  className="btn"
+                  disabled={!splitAt}
+                  onClick={() => onSplit(entry.id, withTime(entry.start, splitAt))}
+                >
+                  Split
+                </button>
+              </div>
+
+              {nextOfProject && (
+                <button className="btn wide" onClick={() => onMerge(entry.id)}>
+                  <MergeIcon /> Merge with {hhmm(nextOfProject.start)}–
+                  {hhmm(nextOfProject.end ?? nextOfProject.start)}
+                </button>
+              )}
+            </div>
+          )}
 
           {!isNew && (
             <>

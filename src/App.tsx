@@ -319,6 +319,12 @@ export default function App() {
               });
             }
           }}
+          onSplit={async (id, at) => {
+            if (await run(() => api.splitEntry(id, at), "Split in two")) setEditing(null);
+          }}
+          onMerge={async (id) => {
+            if (await run(() => api.mergeWithNext(id), "Merged")) setEditing(null);
+          }}
           onResume={async (project) => {
             if (await run(() => api.start(project), `Tracking ${project}`)) {
               setEditing(null);
@@ -334,6 +340,10 @@ export default function App() {
           name={project}
           rate={snapshot.projectRates[project] ?? 0}
           currency={snapshot.settings.currency}
+          pinned={snapshot.pinned.some((name) => name.toLowerCase() === project.toLowerCase())}
+          onTogglePin={async () => {
+            if (await run(() => api.togglePin(project))) setProject(null);
+          }}
           onSave={async ({ name, rate }) => {
             // Rate first, then the rename: a rename carries the rate with it.
             if (rate !== (snapshot.projectRates[project] ?? 0)) {

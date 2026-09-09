@@ -24,6 +24,12 @@ export const api = {
 
   setRate: (project: string, rate: number) => invoke<Snapshot>("set_rate", { project, rate }),
 
+  togglePin: (project: string) => invoke<Snapshot>("toggle_pin", { project }),
+
+  splitEntry: (id: string, at: string) => invoke<Snapshot>("split_entry", { id, at }),
+
+  mergeWithNext: (id: string) => invoke<Snapshot>("merge_with_next", { id }),
+
   deleteProject: (name: string) => invoke<Snapshot>("delete_project", { name }),
 
   saveSettings: (settings: Settings) => invoke<Snapshot>("save_settings", { settings }),

@@ -22,6 +22,7 @@ export type Settings = {
   maxSessionMinutes: number;
   autoBackup: boolean;
   weeklySummary: boolean;
+  linkProjects: boolean;
   currency: string;
   lastSync: string | null;
 };
@@ -30,6 +31,7 @@ export type Snapshot = {
   entries: Entry[];
   projects: string[];
   projectRates: Record<string, number>;
+  pinned: string[];
   settings: Settings;
   pendingDays: number;
 };

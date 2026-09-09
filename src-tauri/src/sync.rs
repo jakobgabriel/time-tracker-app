@@ -130,6 +130,7 @@ pub async fn push_into(
             settings.round_minutes,
             rates,
             &settings.currency,
+            settings.link_projects,
         )?;
         let path = if folder.is_empty() {
             file.clone()

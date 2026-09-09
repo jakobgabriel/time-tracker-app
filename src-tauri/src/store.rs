@@ -16,6 +16,8 @@ pub struct Store {
     pub projects: Vec<String>,
     /// Hourly rate per project, keyed by the project's stored name.
     pub project_rates: BTreeMap<String, f64>,
+    /// Projects kept at the front of the quick list, in the order pinned.
+    pub pinned: Vec<String>,
     pub settings: Settings,
     /// Local days (`YYYY-MM-DD`) whose note is out of date on the server.
     pub dirty_days: BTreeSet<String>,
@@ -70,6 +72,7 @@ impl Store {
             entries: self.entries.clone(),
             projects: self.projects.clone(),
             project_rates: self.project_rates.clone(),
+            pinned: self.pinned.clone(),
             settings,
             pending_days: self.dirty_days.len(),
         }
@@ -254,6 +257,126 @@ impl Store {
     pub fn delete_project(&mut self, project: &str) -> Result<()> {
         self.projects.retain(|p| p != project);
         self.project_rates.remove(project);
+        self.pinned.retain(|p| p != project);
+        self.save()
+    }
+
+    /// Pinning holds a project at the front of the quick list, so the one you
+    /// track every morning does not drift down as you use others.
+    pub fn toggle_pin(&mut self, project: &str) -> Result<bool> {
+        let project = project.trim().to_string();
+        if project.is_empty() {
+            return Err(AppError::Invalid("a pin needs a project".into()));
+        }
+        let pinned = match self
+            .pinned
+            .iter()
+            .position(|p| p.eq_ignore_ascii_case(&project))
+        {
+            Some(index) => {
+                self.pinned.remove(index);
+                false
+            }
+            None => {
+                self.pinned.push(project);
+                true
+            }
+        };
+        self.save()?;
+        Ok(pinned)
+    }
+
+    /// Cuts one interval in two at `at`, keeping both halves on the same
+    /// project — for the block that turned out to be two different things.
+    pub fn split(&mut self, id: &str, at: &str) -> Result<()> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.id == id)
+            .ok_or_else(|| AppError::Invalid("that entry is gone".into()))?;
+
+        let entry = self.entries[index].clone();
+        let Some(end) = entry.end.clone() else {
+            return Err(AppError::Invalid(
+                "stop the timer before splitting it".into(),
+            ));
+        };
+        if crate::time::duration_seconds(&entry.start, at)? <= 0
+            || crate::time::duration_seconds(at, &end)? <= 0
+        {
+            return Err(AppError::Invalid(
+                "the split has to fall inside the entry".into(),
+            ));
+        }
+
+        self.entries[index].end = Some(at.to_string());
+        let second = Entry {
+            id: uuid::Uuid::new_v4().to_string(),
+            start: at.to_string(),
+            end: Some(end),
+            ..entry
+        };
+        self.mark_dirty(&second)?;
+        self.entries.push(second);
+        self.sort();
+        self.save()
+    }
+
+    /// The next entry on the same project, if one follows this one.
+    pub fn next_of_project(&self, id: &str) -> Option<&Entry> {
+        let entry = self.entries.iter().find(|entry| entry.id == id)?;
+        let end = entry.end.as_deref()?;
+        self.entries
+            .iter()
+            .filter(|other| {
+                other.id != entry.id
+                    && other.end.is_some()
+                    && other.project.eq_ignore_ascii_case(entry.project.trim())
+                    && other.start.as_str() >= end
+            })
+            .min_by(|a, b| a.start.cmp(&b.start))
+    }
+
+    /// Absorbs that next entry: one interval from the earlier start to the
+    /// later end, with both notes and both sets of tags kept.
+    pub fn merge_with_next(&mut self, id: &str) -> Result<()> {
+        let next = self
+            .next_of_project(id)
+            .cloned()
+            .ok_or_else(|| AppError::Invalid("there is nothing after this to merge with".into()))?;
+
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.id == id)
+            .ok_or_else(|| AppError::Invalid("that entry is gone".into()))?;
+
+        // Two notes become one, but splitting and merging back must not leave
+        // "afternoon · afternoon" behind.
+        let mut notes: Vec<String> = Vec::new();
+        for note in [self.entries[index].note.clone(), next.note.clone()] {
+            let note = note.trim().to_string();
+            if !note.is_empty() && !notes.iter().any(|kept| kept.eq_ignore_ascii_case(&note)) {
+                notes.push(note);
+            }
+        }
+        self.entries[index].note = notes.join(" · ");
+
+        for tag in next.tags.clone() {
+            if !self.entries[index]
+                .tags
+                .iter()
+                .any(|t| t.eq_ignore_ascii_case(&tag))
+            {
+                self.entries[index].tags.push(tag);
+            }
+        }
+        self.entries[index].end = next.end.clone();
+
+        let merged = self.entries[index].clone();
+        self.mark_dirty(&merged)?;
+        self.mark_dirty(&next)?;
+        self.entries.retain(|entry| entry.id != next.id);
         self.save()
     }
 
@@ -472,6 +595,139 @@ mod tests {
         // A second import of the same CSV mints new ids for the same sessions.
         assert_eq!(store.merge(vec![imported("second")], vec![]).unwrap(), 0);
         assert_eq!(store.entries.len(), 1);
+    }
+
+    #[test]
+    fn splitting_leaves_two_touching_halves() {
+        let (mut store, _dir) = store();
+        let entry = store
+            .start("Acme", "morning", vec!["billable".into()], &at(9, 0))
+            .unwrap();
+        store.stop(&at(12, 0)).unwrap();
+
+        store.split(&entry.id, &at(10, 30)).unwrap();
+
+        let mut halves: Vec<&Entry> = store.entries.iter().collect();
+        halves.sort_by(|a, b| a.start.cmp(&b.start));
+        assert_eq!(halves.len(), 2);
+        assert_eq!(halves[0].end.as_deref(), Some(at(10, 30).as_str()));
+        assert_eq!(halves[1].start, at(10, 30));
+        assert_eq!(halves[1].end.as_deref(), Some(at(12, 0).as_str()));
+        // Both halves are the same work, so both keep its details.
+        assert_eq!(halves[1].project, "Acme");
+        assert_eq!(halves[1].note, "morning");
+        assert_eq!(halves[1].tags, vec!["billable".to_string()]);
+        assert_ne!(halves[0].id, halves[1].id);
+    }
+
+    #[test]
+    fn a_split_outside_the_entry_is_refused() {
+        let (mut store, _dir) = store();
+        let entry = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+
+        for outside in [at(8, 30), at(10, 30), at(9, 0), at(10, 0)] {
+            let error = store.split(&entry.id, &outside).unwrap_err();
+            assert!(
+                error.to_string().contains("inside the entry"),
+                "at {outside}"
+            );
+        }
+        assert_eq!(store.entries.len(), 1);
+    }
+
+    #[test]
+    fn a_running_entry_cannot_be_split() {
+        let (mut store, _dir) = store();
+        let entry = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        let error = store.split(&entry.id, &at(9, 30)).unwrap_err();
+        assert!(error.to_string().contains("stop the timer"));
+    }
+
+    #[test]
+    fn merging_absorbs_the_next_session_of_the_same_project() {
+        let (mut store, _dir) = store();
+        let first = store
+            .start("Acme", "part one", vec!["billable".into()], &at(9, 0))
+            .unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store
+            .start("Admin", "in between", vec![], &at(10, 0))
+            .unwrap();
+        store.stop(&at(10, 30)).unwrap();
+        store
+            .start("Acme", "part two", vec!["meeting".into()], &at(10, 30))
+            .unwrap();
+        store.stop(&at(11, 30)).unwrap();
+
+        store.merge_with_next(&first.id).unwrap();
+
+        let merged = store
+            .entries
+            .iter()
+            .find(|entry| entry.id == first.id)
+            .unwrap();
+        assert_eq!(merged.end.as_deref(), Some(at(11, 30).as_str()));
+        assert_eq!(merged.note, "part one · part two");
+        assert_eq!(
+            merged.tags,
+            vec!["billable".to_string(), "meeting".to_string()]
+        );
+        // The Admin entry in between is untouched; only the Acme pair merged.
+        assert_eq!(store.entries.len(), 2);
+        assert!(store.entries.iter().any(|entry| entry.project == "Admin"));
+    }
+
+    #[test]
+    fn splitting_and_merging_back_is_a_round_trip() {
+        let (mut store, _dir) = store();
+        let entry = store
+            .start("Acme", "afternoon", vec!["billable".into()], &at(13, 0))
+            .unwrap();
+        store.stop(&at(14, 0)).unwrap();
+
+        store.split(&entry.id, &at(13, 30)).unwrap();
+        store.merge_with_next(&entry.id).unwrap();
+
+        assert_eq!(store.entries.len(), 1);
+        let back = &store.entries[0];
+        assert_eq!(back.start, at(13, 0));
+        assert_eq!(back.end.as_deref(), Some(at(14, 0).as_str()));
+        assert_eq!(back.note, "afternoon", "the note is not doubled");
+        assert_eq!(back.tags, vec!["billable".to_string()]);
+    }
+
+    #[test]
+    fn merging_needs_something_to_merge_with() {
+        let (mut store, _dir) = store();
+        let only = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        assert!(store.next_of_project(&only.id).is_none());
+        assert!(store
+            .merge_with_next(&only.id)
+            .unwrap_err()
+            .to_string()
+            .contains("nothing after"));
+    }
+
+    #[test]
+    fn pinning_toggles_and_survives_a_delete() {
+        let (mut store, _dir) = store();
+        store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        assert!(store.toggle_pin("Acme").unwrap());
+        assert_eq!(store.pinned, vec!["Acme".to_string()]);
+        assert!(
+            !store.toggle_pin("acme").unwrap(),
+            "case does not create a second pin"
+        );
+        assert!(store.pinned.is_empty());
+
+        store.toggle_pin("Acme").unwrap();
+        store.delete_project("Acme").unwrap();
+        assert!(
+            store.pinned.is_empty(),
+            "a removed project leaves no pin behind"
+        );
     }
 
     #[test]

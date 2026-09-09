@@ -4,7 +4,7 @@ import { projectColor } from "../colors";
 import { amountOf, anyRates, formatMoney, rateFor, totalAmount } from "../money";
 import {
   addDays, addMonths, buckets, dayTimeline, daysInMonth, daysTracked, inPreviousRange, inRange,
-  monthKey, overlapping, projectTotals, rangeDays, startOfWeek, tagsUsed,
+  monthKey, orderedProjects, overlapping, projectTotals, rangeDays, startOfWeek, tagsUsed,
 } from "../stats";
 import { dayKey, formatShort, localIso, weekKey, withDay, withTime } from "../time";
 import type { Entry } from "../types";
@@ -235,6 +235,27 @@ describe("overlaps", () => {
     expect(overlapping(nine, [{ ...ten, id: "r", start: nine.start, end: null }])).toHaveLength(0);
     expect(overlapping(nine, [entry("2026-09-07", "09:00", "10:00")])).toHaveLength(0);
     expect(overlapping({ ...nine, end: null }, [ten])).toHaveLength(0);
+  });
+});
+
+describe("pinned projects", () => {
+  const recent = ["Reading", "Acme", "Admin", "Deep Work"];
+
+  it("keeps recency when nothing is pinned", () => {
+    expect(orderedProjects(recent, [])).toEqual(recent);
+  });
+
+  it("lifts pinned projects to the front, in the order they were pinned", () => {
+    expect(orderedProjects(recent, ["Deep Work", "admin"])).toEqual([
+      "Deep Work",
+      "Admin",
+      "Reading",
+      "Acme",
+    ]);
+  });
+
+  it("ignores a pin for a project that is gone", () => {
+    expect(orderedProjects(recent, ["Vanished"])).toEqual(recent);
   });
 });
 
