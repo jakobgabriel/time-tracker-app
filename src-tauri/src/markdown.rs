@@ -199,6 +199,70 @@ pub fn render_block(
     Ok(out)
 }
 
+/// A project's own note: one row per day it was worked, plus its totals.
+///
+/// A per-session table would run to thousands of rows on a long project; a
+/// day is the unit someone actually looks back at.
+pub fn render_project_block(
+    days: &[(String, Vec<Entry>)],
+    round: u32,
+    rate: f64,
+    currency: &str,
+) -> Result<String> {
+    let mut total = 0i64;
+    let mut rows = String::new();
+
+    for (day, entries) in days.iter().rev() {
+        let mut seconds = 0i64;
+        let mut notes: Vec<String> = Vec::new();
+        for entry in entries {
+            seconds += entry_seconds(entry, round)?;
+            let note = entry.note.trim();
+            if !note.is_empty() && !notes.iter().any(|kept| kept == note) {
+                notes.push(note.to_string());
+            }
+        }
+        total += seconds;
+        rows.push_str(&format!(
+            "| [[{}]] | {} | {} |\n",
+            day,
+            format_duration(seconds),
+            cell(&notes.join(" · ")),
+        ));
+    }
+
+    let mut out = String::new();
+    out.push_str(BEGIN);
+    out.push_str("\n## ⏱ Time tracking\n\n");
+    out.push_str(&format!(
+        "tracked:: {}\ntracked-hours:: {:.2}\n",
+        format_duration(total),
+        decimal_hours(total)
+    ));
+    if rate > 0.0 {
+        out.push_str(&format!(
+            "rate:: {} {:.2}\nbilled:: {} {:.2}\n",
+            currency,
+            rate,
+            currency,
+            decimal_hours(total) * rate
+        ));
+    }
+    out.push('\n');
+
+    if rows.is_empty() {
+        out.push_str("_No time tracked._\n");
+    } else {
+        out.push_str("| Day | Duration | Notes |\n| --- | --- | --- |\n");
+        out.push_str(&rows);
+    }
+
+    out.push('\n');
+    out.push_str(END);
+    out.push('\n');
+    Ok(out)
+}
+
 /// Splices the generated block into a note.
 ///
 /// Anything the user wrote outside the markers is preserved verbatim — that is
@@ -326,6 +390,57 @@ mod tests {
         assert!(block.contains(r"A\|B"));
         assert!(!block.contains("x\ny"));
         assert!(block.contains("x y"));
+    }
+
+    #[test]
+    fn a_project_note_summarises_by_day_newest_first() {
+        let days = vec![
+            (
+                "2026-09-07".to_string(),
+                vec![entry(
+                    "Acme",
+                    "2026-09-07T09:00:00+02:00",
+                    "2026-09-07T10:00:00+02:00",
+                    "spec",
+                )],
+            ),
+            (
+                "2026-09-08".to_string(),
+                vec![
+                    entry(
+                        "Acme",
+                        "2026-09-08T09:00:00+02:00",
+                        "2026-09-08T10:30:00+02:00",
+                        "api",
+                    ),
+                    entry(
+                        "Acme",
+                        "2026-09-08T13:00:00+02:00",
+                        "2026-09-08T14:00:00+02:00",
+                        "api",
+                    ),
+                ],
+            ),
+        ];
+        let block = render_project_block(&days, 0, 120.0, "€").unwrap();
+
+        assert!(block.contains("tracked:: 3h 30m"));
+        assert!(block.contains("rate:: € 120.00"));
+        assert!(block.contains("billed:: € 420.00"));
+        // Newest day first, and a note repeated across sessions is said once.
+        let table = block.split("| Day |").nth(1).unwrap();
+        assert!(
+            table.contains("| [[2026-09-08]] | 2h 30m | api |"),
+            "got: {table}"
+        );
+        assert!(table.find("2026-09-08").unwrap() < table.find("2026-09-07").unwrap());
+    }
+
+    #[test]
+    fn an_unpriced_project_note_stays_quiet_about_money() {
+        let block = render_project_block(&sample()[..1], 0, 0.0, "€").unwrap();
+        assert!(!block.contains("billed::"));
+        assert!(!block.contains("rate::"));
     }
 
     #[test]

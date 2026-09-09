@@ -179,7 +179,7 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
 /// `full`, every day that has entries is rewritten instead.
 #[tauri::command]
 async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> {
-    let (settings, entries, projects, rates, days) = state.with(|store| {
+    let (settings, entries, projects, rates, deleted, days) = state.with(|store| {
         let days: BTreeSet<String> = if full {
             store
                 .entries
@@ -195,6 +195,7 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
             store.entries.clone(),
             store.projects.clone(),
             store.project_rates.clone(),
+            store.deleted.clone(),
             days,
         ))
     })?;
@@ -202,6 +203,26 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     if settings.webdav_url.trim().is_empty() {
         return Err(AppError::NotConfigured);
     }
+    // Two-way: adopt whatever the other device left in the vault before
+    // writing, so the notes reflect both of them rather than only this one.
+    let mut pulled = 0;
+    if settings.two_way_sync {
+        if let Some(text) = webdav::Dav::from_settings(&settings)?
+            .get(&vault_path(&settings, backup::FILE))
+            .await?
+        {
+            let parsed = backup::parse(&text)?;
+            pulled =
+                state.with(|store| store.merge(parsed.entries, parsed.projects, parsed.deleted))?;
+        }
+    }
+
+    let (entries, days) = if pulled > 0 {
+        state.with(|store| Ok((store.entries.clone(), store.dirty_days.clone())))?
+    } else {
+        (entries, days)
+    };
+
     if days.is_empty() {
         return Ok(SyncReport {
             files: 0,
@@ -225,9 +246,14 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
             .files;
     }
 
+    if settings.project_notes {
+        let projects = sync::project_plan(&entries, &days)?;
+        report.files += sync::push_projects(&settings, projects, &rates).await?;
+    }
+
     if settings.auto_backup {
         // Best effort: a failed backup must not lose the sync that succeeded.
-        if let Err(error) = write_backup(&settings, &entries, &projects).await {
+        if let Err(error) = write_backup(&settings, &entries, &projects, &deleted).await {
             eprintln!("tempo: backup skipped ({error})");
         }
     }
@@ -255,27 +281,38 @@ fn vault_path(settings: &Settings, name: &str) -> String {
     }
 }
 
-async fn write_backup(settings: &Settings, entries: &[Entry], projects: &[String]) -> Result<()> {
+async fn write_backup(
+    settings: &Settings,
+    entries: &[Entry],
+    projects: &[String],
+    deleted: &std::collections::BTreeMap<String, String>,
+) -> Result<()> {
     let dav = webdav::Dav::from_settings(settings)?;
     let folder = settings.vault_folder.trim().trim_matches('/').to_string();
     if !folder.is_empty() {
         dav.ensure_folder(&folder).await?;
     }
-    let body = backup::render(entries, projects, &chrono::Local::now().to_rfc3339())?;
+    let body = backup::render(
+        entries,
+        projects,
+        deleted,
+        &chrono::Local::now().to_rfc3339(),
+    )?;
     dav.put(&vault_path(settings, backup::FILE), body).await
 }
 
 /// Writes the backup on demand — the same file a sync refreshes on its own.
 #[tauri::command]
 async fn backup_now(state: State<'_, AppState>) -> Result<String> {
-    let (settings, entries, projects) = state.with(|store| {
+    let (settings, entries, projects, deleted) = state.with(|store| {
         Ok((
             store.settings.clone(),
             store.entries.clone(),
             store.projects.clone(),
+            store.deleted.clone(),
         ))
     })?;
-    write_backup(&settings, &entries, &projects).await?;
+    write_backup(&settings, &entries, &projects, &deleted).await?;
     Ok(format!(
         "Backed up {} entries to {}",
         entries.len(),
@@ -299,7 +336,7 @@ async fn restore_backup(state: State<'_, AppState>) -> Result<String> {
 
     let parsed = backup::parse(&text)?;
     let found = parsed.entries.len();
-    let added = state.with(|store| store.merge(parsed.entries, parsed.projects))?;
+    let added = state.with(|store| store.merge(parsed.entries, parsed.projects, parsed.deleted))?;
 
     Ok(match added {
         0 => format!("Backup holds {found} entries, all of them already here"),
@@ -332,7 +369,8 @@ async fn import_csv(state: State<'_, AppState>) -> Result<String> {
         .collect();
 
     let found = entries.len();
-    let added = state.with(|store| store.merge(entries, projects))?;
+    let added =
+        state.with(|store| store.merge(entries, projects, std::collections::BTreeMap::new()))?;
 
     let mut message = match added {
         0 if found == 0 => "Nothing in that file could be read".to_string(),

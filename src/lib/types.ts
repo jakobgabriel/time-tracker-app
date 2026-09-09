@@ -26,6 +26,9 @@ export type Settings = {
   notePattern: string;
   weeklyPattern: string;
   splitAtMidnight: boolean;
+  projectNotes: boolean;
+  projectPattern: string;
+  twoWaySync: boolean;
   currency: string;
   lastSync: string | null;
 };

@@ -227,6 +227,42 @@ export function SettingsScreen({
           />
         </div>
 
+        <div className="switch">
+          <span>
+            A note per project
+            <br />
+            <span className="small muted">
+              <code>Projects/Acme.md</code> gets its own log: a row per day, with totals.
+            </span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.projectNotes}
+            aria-label="A note per project"
+            onClick={() => set("projectNotes", !form.projectNotes)}
+          />
+        </div>
+
+        {form.projectNotes && (
+          <div className="field">
+            <label htmlFor="project-pattern">Project note path</label>
+            <input
+              id="project-pattern"
+              type="text"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="Projects/{project}.md"
+              value={form.projectPattern}
+              onChange={(event) => set("projectPattern", event.target.value)}
+            />
+            <span className="help">
+              <code>{"{project}"}</code> is the project's name. Empty keeps a Projects folder inside
+              the vault folder.
+            </span>
+          </div>
+        )}
+
         <div className="field">
           <label htmlFor="tag">Tag for new notes</label>
           <input
@@ -333,11 +369,14 @@ export function SettingsScreen({
 
       <Section
         title="Sync"
-        status={
+        status={[
           snapshot.pendingDays > 0
             ? `${snapshot.pendingDays} day(s) waiting`
-            : `synced ${relativeTime(snapshot.settings.lastSync)}`
-        }
+            : `synced ${relativeTime(snapshot.settings.lastSync)}`,
+          form.twoWaySync ? "two-way" : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         open
       >
         <div className="switch">
@@ -352,6 +391,24 @@ export function SettingsScreen({
             aria-checked={form.autoSync}
             aria-label="Sync when a timer stops"
             onClick={() => set("autoSync", !form.autoSync)}
+          />
+        </div>
+
+        <div className="switch">
+          <span>
+            Two-way sync
+            <br />
+            <span className="small muted">
+              Reads the vault's backup before writing, so a second device's work — and its
+              deletions — arrive here.
+            </span>
+          </span>
+          <button
+            className="track"
+            role="switch"
+            aria-checked={form.twoWaySync}
+            aria-label="Two-way sync"
+            onClick={() => set("twoWaySync", !form.twoWaySync)}
           />
         </div>
 

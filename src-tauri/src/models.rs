@@ -66,6 +66,13 @@ pub struct Settings {
     pub weekly_pattern: String,
     /// Cut a session that runs past midnight so each day's total is its own.
     pub split_at_midnight: bool,
+    /// Keep a note per project alongside the daily ones.
+    pub project_notes: bool,
+    /// Where those go; empty keeps `<folder>/Projects/<name>.md`.
+    pub project_pattern: String,
+    /// Merge the vault's backup into this device before every sync, so two
+    /// devices converge instead of drifting.
+    pub two_way_sync: bool,
     /// Prefixed to every amount. Money is only ever shown once a rate is set.
     pub currency: String,
     pub last_sync: Option<String>,
@@ -90,6 +97,9 @@ impl Default for Settings {
             note_pattern: String::new(),
             weekly_pattern: String::new(),
             split_at_midnight: true,
+            project_notes: false,
+            project_pattern: String::new(),
+            two_way_sync: false,
             currency: "€".to_string(),
             last_sync: None,
         }

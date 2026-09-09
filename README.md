@@ -189,6 +189,20 @@ present, anything else is ignored — so an export from another tracker usually 
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
 
+### A note per project
+
+Turn on **A note per project** and each project gets its own note — `Projects/Acme Rollout.md` by
+default, or a `{project}` pattern of your own. It carries the project's total, its rate and what it
+has billed, and a row per day linking back to that day's note. Combined with **Link projects**, the
+vault ends up with a graph that connects hours to work.
+
+### Two devices
+
+**Two-way sync** reads `tempo-backup.json` before writing, so a second device's sessions — and its
+deletions — arrive here. Deletions travel as tombstones, which is what stops a stale backup from
+resurrecting an entry you removed; they are dropped after 120 days, by which time every device has
+seen them. Leave it off if you only track on one device: the sync then only ever writes.
+
 ### Backup and restore
 
 With **Back up on every sync** left on, each sync also refreshes `tempo-backup.json` in the vault

@@ -133,6 +133,83 @@ pub fn weekly_plan(entries: &[Entry], days: &BTreeSet<String>) -> Result<Plan> {
     Ok(plan)
 }
 
+/// A project's whole history, grouped by day.
+pub type ProjectPlan = BTreeMap<String, Vec<(String, Vec<Entry>)>>;
+
+/// Which projects need their own note rewritten: those with time on a day
+/// that changed, together with every entry they have ever had.
+pub fn project_plan(entries: &[Entry], days: &BTreeSet<String>) -> Result<ProjectPlan> {
+    let mut touched: BTreeSet<String> = BTreeSet::new();
+    for entry in entries {
+        if entry.end.is_some() && days.contains(&local_day(&entry.start)?) {
+            touched.insert(entry.project.trim().to_string());
+        }
+    }
+
+    let mut plan: ProjectPlan = BTreeMap::new();
+    for project in touched {
+        let mut by_day: BTreeMap<String, Vec<Entry>> = BTreeMap::new();
+        for entry in entries {
+            if entry.end.is_some() && entry.project.trim() == project {
+                by_day
+                    .entry(local_day(&entry.start)?)
+                    .or_default()
+                    .push(entry.clone());
+            }
+        }
+        plan.insert(project, by_day.into_iter().collect());
+    }
+    Ok(plan)
+}
+
+/// Writes one note per project. Returns how many files were written.
+pub async fn push_projects(
+    settings: &Settings,
+    plan: ProjectPlan,
+    rates: &BTreeMap<String, f64>,
+) -> Result<usize> {
+    if plan.is_empty() {
+        return Ok(0);
+    }
+    let dav = Dav::from_settings(settings)?;
+    let written = plan.len();
+
+    for (project, days) in plan {
+        let stem = crate::paths::file_stem(&project);
+        let path = if settings.project_pattern.trim().is_empty() {
+            let folder = settings.vault_folder.trim().trim_matches('/');
+            if folder.is_empty() {
+                format!("Projects/{stem}.md")
+            } else {
+                format!("{folder}/Projects/{stem}.md")
+            }
+        } else {
+            // The pattern's date placeholders are meaningless here; {project}
+            // is the one that matters.
+            crate::paths::expand(
+                &settings.project_pattern.replace("{project}", &stem),
+                "1970-01-01",
+            )?
+        };
+
+        if let Some(folder) = crate::paths::parent(&path) {
+            dav.ensure_folder(&folder).await?;
+        }
+
+        let block = markdown::render_project_block(
+            &days,
+            settings.round_minutes,
+            rates.get(&project).copied().unwrap_or(0.0),
+            &settings.currency,
+        )?;
+        let existing = dav.get(&path).await?;
+        let merged = markdown::merge(existing.as_deref(), &block, &project, &settings.note_tag);
+        dav.put(&path, merged).await?;
+    }
+
+    Ok(written)
+}
+
 fn note_title(file: &str) -> &str {
     file.strip_suffix(".md").unwrap_or(file)
 }

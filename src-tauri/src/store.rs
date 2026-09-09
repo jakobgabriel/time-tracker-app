@@ -23,6 +23,9 @@ pub struct Store {
     pub settings: Settings,
     /// Local days (`YYYY-MM-DD`) whose note is out of date on the server.
     pub dirty_days: BTreeSet<String>,
+    /// Ids of entries that were deleted, and when. Without these a restore or
+    /// a two-way sync would resurrect everything the other device removed.
+    pub deleted: BTreeMap<String, String>,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -228,7 +231,16 @@ impl Store {
     }
 
     pub fn discard_running(&mut self) -> Result<()> {
+        let running: Vec<String> = self
+            .entries
+            .iter()
+            .filter(|entry| entry.end.is_none())
+            .map(|entry| entry.id.clone())
+            .collect();
         self.entries.retain(|e| e.end.is_some());
+        for id in running {
+            self.bury(&id);
+        }
         self.save()
     }
 
@@ -264,8 +276,21 @@ impl Store {
         if let Some(index) = self.entries.iter().position(|e| e.id == id) {
             let removed = self.entries.remove(index);
             self.mark_dirty(&removed)?;
+            self.bury(&removed.id);
         }
         self.save()
+    }
+
+    /// Remembers that an id is gone. A tombstone older than this is dropped:
+    /// by then every device has long since seen the deletion.
+    fn bury(&mut self, id: &str) {
+        self.deleted
+            .insert(id.to_string(), chrono::Local::now().to_rfc3339());
+        if self.deleted.len() > 32 {
+            let cutoff = (chrono::Local::now() - chrono::Duration::days(120)).to_rfc3339();
+            self.deleted
+                .retain(|_, when| when.as_str() > cutoff.as_str());
+        }
     }
 
     /// Renames a project across every entry. Renaming onto an existing name
@@ -327,7 +352,22 @@ impl Store {
     /// everything already here. Merging is additive on purpose: it repairs a
     /// lost phone or a mistaken delete without overwriting newer work, and
     /// running it twice changes nothing the second time.
-    pub fn merge(&mut self, incoming: Vec<Entry>, projects: Vec<String>) -> Result<usize> {
+    pub fn merge(
+        &mut self,
+        incoming: Vec<Entry>,
+        projects: Vec<String>,
+        tombstones: BTreeMap<String, String>,
+    ) -> Result<usize> {
+        // Deletions travel too: adopt the other side's tombstones first, so an
+        // entry it removed does not come back with the next merge.
+        for (id, when) in tombstones {
+            if let Some(index) = self.entries.iter().position(|entry| entry.id == id) {
+                let removed = self.entries.remove(index);
+                self.mark_dirty(&removed)?;
+            }
+            self.deleted.entry(id).or_insert(when);
+        }
+
         let known: std::collections::HashSet<String> =
             self.entries.iter().map(|entry| entry.id.clone()).collect();
         let mut seen: std::collections::HashSet<(String, String, String)> =
@@ -335,7 +375,10 @@ impl Store {
 
         let mut added = 0;
         for entry in incoming {
-            if entry.id.is_empty() || known.contains(&entry.id) {
+            if entry.id.is_empty()
+                || known.contains(&entry.id)
+                || self.deleted.contains_key(&entry.id)
+            {
                 continue;
             }
             if !seen.insert(Self::fingerprint(&entry)) {
@@ -484,6 +527,7 @@ impl Store {
         self.mark_dirty(&merged)?;
         self.mark_dirty(&next)?;
         self.entries.retain(|entry| entry.id != next.id);
+        self.bury(&next.id);
         self.save()
     }
 
@@ -716,6 +760,7 @@ mod tests {
             .merge(
                 vec![from_backup, stale],
                 vec!["Reading".into(), "Acme".into()],
+                BTreeMap::new(),
             )
             .unwrap();
 
@@ -725,6 +770,37 @@ mod tests {
         assert_eq!(kept.note, "mine", "local wins over the backup");
         assert!(store.projects.iter().any(|p| p == "Reading"));
         assert_eq!(store.dirty_days.len(), 1, "the restored day needs a note");
+    }
+
+    #[test]
+    fn a_deleted_entry_does_not_come_back_from_a_backup() {
+        let (mut store, _dir) = store();
+        let entry = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        let copy = store.entries[0].clone();
+
+        store.delete(&entry.id).unwrap();
+        assert!(store.entries.is_empty());
+        assert!(store.deleted.contains_key(&entry.id));
+
+        // The vault still holds a backup written before the deletion.
+        let added = store.merge(vec![copy], vec![], BTreeMap::new()).unwrap();
+        assert_eq!(added, 0, "a tombstone outranks a stale backup");
+        assert!(store.entries.is_empty());
+    }
+
+    #[test]
+    fn another_devices_deletion_removes_the_entry_here() {
+        let (mut store, _dir) = store();
+        let entry = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        store.dirty_days.clear();
+
+        let elsewhere = BTreeMap::from([(entry.id.clone(), at(11, 0))]);
+        store.merge(vec![], vec![], elsewhere).unwrap();
+
+        assert!(store.entries.is_empty(), "the other device deleted it");
+        assert_eq!(store.dirty_days.len(), 1, "its note has to be rewritten");
     }
 
     #[test]
@@ -739,9 +815,19 @@ mod tests {
             end: Some(at(10, 0)),
         };
 
-        assert_eq!(store.merge(vec![imported("first")], vec![]).unwrap(), 1);
+        assert_eq!(
+            store
+                .merge(vec![imported("first")], vec![], BTreeMap::new())
+                .unwrap(),
+            1
+        );
         // A second import of the same CSV mints new ids for the same sessions.
-        assert_eq!(store.merge(vec![imported("second")], vec![]).unwrap(), 0);
+        assert_eq!(
+            store
+                .merge(vec![imported("second")], vec![], BTreeMap::new())
+                .unwrap(),
+            0
+        );
         assert_eq!(store.entries.len(), 1);
     }
 

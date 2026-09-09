@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppError, Result};
@@ -21,14 +23,23 @@ pub struct Backup {
     pub entries: Vec<Entry>,
     #[serde(default)]
     pub projects: Vec<String>,
+    /// Ids this device deleted, so another one does not bring them back.
+    #[serde(default)]
+    pub deleted: BTreeMap<String, String>,
 }
 
-pub fn render(entries: &[Entry], projects: &[String], now: &str) -> Result<String> {
+pub fn render(
+    entries: &[Entry],
+    projects: &[String],
+    deleted: &BTreeMap<String, String>,
+    now: &str,
+) -> Result<String> {
     let backup = Backup {
         version: 1,
         exported_at: now.to_string(),
         entries: entries.to_vec(),
         projects: projects.to_vec(),
+        deleted: deleted.clone(),
     };
     Ok(serde_json::to_string_pretty(&backup)?)
 }
@@ -64,6 +75,7 @@ mod tests {
         let text = render(
             &[entry("a"), entry("b")],
             &["Acme".to_string()],
+            &BTreeMap::from([("gone".to_string(), "2026-09-01T10:00:00+02:00".to_string())]),
             "2026-09-08T12:00:00+02:00",
         )
         .unwrap();
@@ -71,12 +83,22 @@ mod tests {
         assert_eq!(back.version, 1);
         assert_eq!(back.entries.len(), 2);
         assert_eq!(back.projects, vec!["Acme".to_string()]);
+        assert!(
+            back.deleted.contains_key("gone"),
+            "deletions travel with the backup"
+        );
         assert_eq!(back.entries[0].tags, vec!["billable".to_string()]);
     }
 
     #[test]
     fn never_carries_credentials() {
-        let text = render(&[entry("a")], &[], "2026-09-08T12:00:00+02:00").unwrap();
+        let text = render(
+            &[entry("a")],
+            &[],
+            &BTreeMap::new(),
+            "2026-09-08T12:00:00+02:00",
+        )
+        .unwrap();
         assert!(!text.contains("password"));
         assert!(!text.contains("webdav"));
     }
