@@ -270,3 +270,45 @@ export function dayTimeline(entries: Entry[], day: string, nowMs: number): DayTi
     gapSeconds: gaps.reduce((sum, gap) => sum + (gap.to - gap.from) * 60, 0),
   };
 }
+
+export type Consistency = {
+  /** Days tracked in an unbroken run ending today or yesterday. */
+  current: number;
+  longest: number;
+  best: { day: string; seconds: number } | null;
+};
+
+/**
+ * A streak survives today being empty — the day is not over yet — but not two
+ * empty days in a row. Counting today as a break would punish people at 09:00.
+ */
+export function consistency(entries: Entry[], nowMs: number): Consistency {
+  const totals = new Map<string, number>();
+  for (const entry of entries) {
+    const key = dayKey(entry.start);
+    totals.set(key, (totals.get(key) ?? 0) + entrySeconds(entry, nowMs));
+  }
+  const worked = new Set([...totals.entries()].filter(([, s]) => s > 0).map(([day]) => day));
+  if (worked.size === 0) return { current: 0, longest: 0, best: null };
+
+  const today = dayKey(localIso(new Date(nowMs)));
+  let cursor = worked.has(today) ? today : addDays(today, -1);
+  let current = 0;
+  while (worked.has(cursor)) {
+    current += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  const sorted = [...worked].sort();
+  let longest = 0;
+  let run = 0;
+  let previous: string | null = null;
+  for (const day of sorted) {
+    run = previous && addDays(previous, 1) === day ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    previous = day;
+  }
+
+  const best = [...totals.entries()].sort((a, b) => b[1] - a[1])[0];
+  return { current, longest, best: { day: best[0], seconds: best[1] } };
+}

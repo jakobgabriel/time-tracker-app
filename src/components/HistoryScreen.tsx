@@ -14,9 +14,10 @@ type Props = {
   onEdit: (entry: Entry) => void;
   onAdd: () => void;
   onFillGap: (day: string, from: string, to: string) => void;
+  onBulkEdit: (entries: Entry[]) => void;
 };
 
-export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap }: Props) {
+export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBulkEdit }: Props) {
   const [query, setQuery] = useState("");
 
   const matches = useMemo(() => {
@@ -60,6 +61,12 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap }: Pro
           </button>
         )}
       </div>
+
+      {query.trim() && matches.length > 0 && (
+        <button className="btn wide" onClick={() => onBulkEdit(matches)} style={{ marginBottom: 4 }}>
+          Edit all {matches.length} matching {matches.length === 1 ? "entry" : "entries"}
+        </button>
+      )}
 
       {days.length === 0 ? (
         <p className="empty" style={{ marginTop: 16 }}>

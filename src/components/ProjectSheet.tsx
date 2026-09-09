@@ -9,19 +9,21 @@ type Props = {
   currency: string;
   pinned: boolean;
   autoTags: string[];
+  target: number;
   /** Applies whatever changed — a new name, rate, or set of automatic tags. */
-  onSave: (change: { name: string; rate: number; autoTags: string[] }) => void;
+  onSave: (change: { name: string; rate: number; autoTags: string[]; target: number }) => void;
   onTogglePin: () => void;
   onForget: () => void;
   onClose: () => void;
 };
 
 export function ProjectSheet({
-  name, rate, currency, pinned, autoTags, onSave, onTogglePin, onForget, onClose,
+  name, rate, currency, pinned, autoTags, target, onSave, onTogglePin, onForget, onClose,
 }: Props) {
   const [value, setValue] = useState(name);
   const [hourly, setHourly] = useState(rate ? String(rate) : "");
   const [tags, setTags] = useState(autoTags.join(", "));
+  const [weekly, setWeekly] = useState(target ? String(target / 60) : "");
 
   const named = value.trim();
   const priced = Number(hourly) || 0;
@@ -29,13 +31,17 @@ export function ProjectSheet({
     .split(",")
     .map((tag) => tag.trim().replace(/^#/, ""))
     .filter(Boolean);
+  const weeklyMinutes = Math.round((Number(weekly) || 0) * 60);
   const changed =
     named !== "" &&
     (named !== name ||
       priced !== rate ||
+      weeklyMinutes !== target ||
       parsedTags.join(",") !== autoTags.join(","));
 
-  const save = () => changed && onSave({ name: named, rate: priced, autoTags: parsedTags });
+  const save = () =>
+    changed &&
+    onSave({ name: named, rate: priced, autoTags: parsedTags, target: weeklyMinutes });
 
   return (
     <>
@@ -82,6 +88,24 @@ export function ProjectSheet({
               Leave it empty and Tempo never mentions money. With a rate, amounts appear in
               Insights, in the CSV export and in the note's per-project table.
             </span>
+          </div>
+
+          <div className="field">
+            <label htmlFor="target">Weekly target</label>
+            <div className="prefixed">
+              <span>hours</span>
+              <input
+                id="target"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                placeholder="0"
+                value={weekly}
+                onChange={(event) => setWeekly(event.target.value)}
+              />
+            </div>
+            <span className="help">Draws a progress bar in the week view of Insights.</span>
           </div>
 
           <div className="field">

@@ -27,6 +27,14 @@ export const api = {
   setAutoTags: (project: string, tags: string[]) =>
     invoke<Snapshot>("set_auto_tags", { project, tags }),
 
+  setTarget: (project: string, minutes: number) =>
+    invoke<Snapshot>("set_target", { project, minutes }),
+
+  bulkEdit: (ids: string[], project: string | null, addTags: string[]) =>
+    invoke<Snapshot>("bulk_edit", { ids, project, addTags }),
+
+  writeInvoice: (month: string) => invoke<string>("write_invoice", { month }),
+
   togglePin: (project: string) => invoke<Snapshot>("toggle_pin", { project }),
 
   splitEntry: (id: string, at: string) => invoke<Snapshot>("split_entry", { id, at }),

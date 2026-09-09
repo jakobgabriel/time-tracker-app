@@ -983,8 +983,7 @@ input:focus, select:focus, textarea:focus {
 
 .stat-row {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 18px;
 }
@@ -1050,6 +1049,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .project-row .share b { color: var(--text); font-weight: 600; }
+
+
 
 /* --------------------------------------------------------------- search */
 .search {

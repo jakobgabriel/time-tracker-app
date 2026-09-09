@@ -39,6 +39,7 @@ export type Snapshot = {
   projectRates: Record<string, number>;
   pinned: string[];
   autoTags: Record<string, string[]>;
+  projectTargets: Record<string, number>;
   settings: Settings;
   pendingDays: number;
 };

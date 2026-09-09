@@ -10,6 +10,7 @@ import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { InsightsScreen } from "./components/InsightsScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { BulkSheet } from "./components/BulkSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { Toast, useToast } from "./components/Toast";
 import { TrackScreen } from "./components/TrackScreen";
@@ -54,6 +55,7 @@ export default function App() {
     });
   }, []);
   const [project, setProject] = useState<string | null>(null);
+  const [bulk, setBulk] = useState<Entry[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [toast, showToast, dismissToast] = useToast();
@@ -196,7 +198,22 @@ export default function App() {
         />
       )}
 
-      {tab === "insights" && <InsightsScreen snapshot={snapshot} nowMs={nowMs} />}
+      {tab === "insights" && (
+        <InsightsScreen
+          snapshot={snapshot}
+          nowMs={nowMs}
+          onInvoice={async (month) => {
+            setBusy(true);
+            try {
+              showToast(await api.writeInvoice(month), "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
 
       {tab === "history" && (
         <HistoryScreen
@@ -205,6 +222,7 @@ export default function App() {
           onEdit={setEditing}
           onAdd={() => setEditing(blankEntry())}
           onFillGap={fillGap}
+          onBulkEdit={setBulk}
         />
       )}
 
@@ -346,10 +364,15 @@ export default function App() {
               ([name]) => name.toLowerCase() === project.toLowerCase(),
             )?.[1] ?? []
           }
+          target={
+            Object.entries(snapshot.projectTargets).find(
+              ([name]) => name.toLowerCase() === project.toLowerCase(),
+            )?.[1] ?? 0
+          }
           onTogglePin={async () => {
             if (await run(() => api.togglePin(project))) setProject(null);
           }}
-          onSave={async ({ name, rate, autoTags }) => {
+          onSave={async ({ name, rate, autoTags, target }) => {
             // Rate and tags first, then the rename: a rename carries them along.
             if (rate !== (snapshot.projectRates[project] ?? 0)) {
               if (!(await run(() => api.setRate(project, rate)))) return;
@@ -360,6 +383,13 @@ export default function App() {
               )?.[1] ?? [];
             if (autoTags.join(",") !== currentTags.join(",")) {
               if (!(await run(() => api.setAutoTags(project, autoTags)))) return;
+            }
+            const currentTarget =
+              Object.entries(snapshot.projectTargets).find(
+                ([existing]) => existing.toLowerCase() === project.toLowerCase(),
+              )?.[1] ?? 0;
+            if (target !== currentTarget) {
+              if (!(await run(() => api.setTarget(project, target)))) return;
             }
             if (name !== project && !(await run(() => api.renameProject(project, name)))) {
               return;
@@ -373,6 +403,20 @@ export default function App() {
             }
           }}
           onClose={() => setProject(null)}
+        />
+      )}
+
+      {bulk && (
+        <BulkSheet
+          entries={bulk}
+          projects={snapshot.projects}
+          onApply={async (target, addTags) => {
+            const ids = bulk.map((entry) => entry.id);
+            if (await run(() => api.bulkEdit(ids, target, addTags), `Updated ${ids.length}`)) {
+              setBulk(null);
+            }
+          }}
+          onClose={() => setBulk(null)}
         />
       )}
 

@@ -20,6 +20,8 @@ pub struct Store {
     pub pinned: Vec<String>,
     /// Tags applied automatically when a project's timer starts.
     pub auto_tags: BTreeMap<String, Vec<String>>,
+    /// Minutes a project should get each week, for the bars in Insights.
+    pub project_targets: BTreeMap<String, u32>,
     pub settings: Settings,
     /// Local days (`YYYY-MM-DD`) whose note is out of date on the server.
     pub dirty_days: BTreeSet<String>,
@@ -79,6 +81,7 @@ impl Store {
             project_rates: self.project_rates.clone(),
             pinned: self.pinned.clone(),
             auto_tags: self.auto_tags.clone(),
+            project_targets: self.project_targets.clone(),
             settings,
             pending_days: self.dirty_days.len(),
         }
@@ -116,6 +119,74 @@ impl Store {
             }
         }
         tags
+    }
+
+    /// Sets (or with zero, clears) how many minutes a week a project should get.
+    pub fn set_target(&mut self, project: &str, minutes: u32) -> Result<()> {
+        let project = project.trim().to_string();
+        if project.is_empty() {
+            return Err(AppError::Invalid("a target needs a project".into()));
+        }
+        if minutes == 0 {
+            self.project_targets.remove(&project);
+        } else {
+            self.project_targets.insert(project, minutes);
+        }
+        self.save()
+    }
+
+    /// Applies one change to many entries at once — what a search result is
+    /// for once a rename or a forgotten tag has left a mess behind.
+    pub fn bulk_edit(
+        &mut self,
+        ids: &[String],
+        project: Option<String>,
+        add_tags: Vec<String>,
+    ) -> Result<usize> {
+        let wanted: std::collections::HashSet<&String> = ids.iter().collect();
+        let project = project
+            .map(|name| name.trim().to_string())
+            .filter(|name| !name.is_empty());
+        let add_tags: Vec<String> = add_tags
+            .into_iter()
+            .map(|tag| tag.trim().trim_start_matches('#').to_string())
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        if project.is_none() && add_tags.is_empty() {
+            return Err(AppError::Invalid("nothing to change".into()));
+        }
+
+        let mut touched = Vec::new();
+        for index in 0..self.entries.len() {
+            if !wanted.contains(&self.entries[index].id) {
+                continue;
+            }
+            // The day it is leaving needs its note rewritten as much as the
+            // day it stays on.
+            let before = self.entries[index].clone();
+            if let Some(name) = &project {
+                self.entries[index].project = name.clone();
+            }
+            for tag in &add_tags {
+                if !self.entries[index]
+                    .tags
+                    .iter()
+                    .any(|t| t.eq_ignore_ascii_case(tag))
+                {
+                    self.entries[index].tags.push(tag.clone());
+                }
+            }
+            touched.push(before);
+        }
+
+        for entry in &touched {
+            self.mark_dirty(entry)?;
+        }
+        if let Some(name) = &project {
+            self.touch_project(name);
+        }
+        self.save()?;
+        Ok(touched.len())
     }
 
     /// Sets (or with an empty list, clears) a project's automatic tags.
@@ -324,6 +395,9 @@ impl Store {
         if let Some(tags) = self.auto_tags.remove(from.trim()) {
             self.auto_tags.entry(to.clone()).or_insert(tags);
         }
+        if let Some(target) = self.project_targets.remove(from.trim()) {
+            self.project_targets.entry(to.clone()).or_insert(target);
+        }
         for pin in self.pinned.iter_mut() {
             if pin.eq_ignore_ascii_case(from.trim()) {
                 *pin = to.clone();
@@ -408,6 +482,8 @@ impl Store {
         self.projects.retain(|p| p != project);
         self.project_rates.remove(project);
         self.pinned.retain(|p| p != project);
+        self.project_targets.remove(project);
+        self.auto_tags.remove(project);
         self.save()
     }
 
@@ -1028,6 +1104,69 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("nothing after"));
+    }
+
+    #[test]
+    fn a_bulk_edit_moves_and_tags_only_what_was_asked_for() {
+        let (mut store, _dir) = store();
+        let a = store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.stop(&at(10, 0)).unwrap();
+        let b = store
+            .start("Acme", "", vec!["billable".into()], &at(10, 0))
+            .unwrap();
+        store.stop(&at(11, 0)).unwrap();
+        let untouched = store.start("Admin", "", vec![], &at(11, 0)).unwrap();
+        store.stop(&at(12, 0)).unwrap();
+        store.dirty_days.clear();
+
+        let changed = store
+            .bulk_edit(
+                &[a.id.clone(), b.id.clone()],
+                Some("Acme GmbH".into()),
+                vec!["#billable".into()],
+            )
+            .unwrap();
+
+        assert_eq!(changed, 2);
+        for id in [&a.id, &b.id] {
+            let entry = store.entries.iter().find(|entry| &entry.id == id).unwrap();
+            assert_eq!(entry.project, "Acme GmbH");
+            assert_eq!(entry.tags, vec!["billable".to_string()], "no doubled tag");
+        }
+        let other = store
+            .entries
+            .iter()
+            .find(|entry| entry.id == untouched.id)
+            .unwrap();
+        assert_eq!(other.project, "Admin");
+        assert_eq!(
+            store.dirty_days.len(),
+            1,
+            "the day they were on needs rewriting"
+        );
+        assert!(store.projects.iter().any(|p| p == "Acme GmbH"));
+    }
+
+    #[test]
+    fn a_bulk_edit_that_changes_nothing_is_refused() {
+        let (mut store, _dir) = store();
+        assert!(store.bulk_edit(&["x".into()], None, vec![]).is_err());
+        assert!(store
+            .bulk_edit(&["x".into()], Some("  ".into()), vec![" ".into()])
+            .is_err());
+    }
+
+    #[test]
+    fn a_weekly_target_follows_a_rename_and_goes_with_a_removal() {
+        let (mut store, _dir) = store();
+        store.start("Acme", "", vec![], &at(9, 0)).unwrap();
+        store.set_target("Acme", 600).unwrap();
+
+        store.rename_project("Acme", "Acme GmbH").unwrap();
+        assert_eq!(store.project_targets.get("Acme GmbH"), Some(&600));
+
+        store.delete_project("Acme GmbH").unwrap();
+        assert!(store.project_targets.is_empty());
     }
 
     #[test]

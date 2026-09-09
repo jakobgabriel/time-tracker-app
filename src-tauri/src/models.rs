@@ -119,6 +119,8 @@ pub struct Snapshot {
     pub pinned: Vec<String>,
     /// Tags a project applies to every new session.
     pub auto_tags: BTreeMap<String, Vec<String>>,
+    /// Minutes a week a project should get.
+    pub project_targets: BTreeMap<String, u32>,
     pub settings: Settings,
     pub pending_days: usize,
 }

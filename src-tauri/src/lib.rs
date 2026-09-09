@@ -1,6 +1,7 @@
 pub mod backup;
 pub mod csv;
 pub mod error;
+pub mod invoice;
 pub mod markdown;
 pub mod models;
 pub mod paths;
@@ -114,6 +115,58 @@ fn set_auto_tags(
         store.set_auto_tags(&project, tags)?;
         Ok(store.snapshot())
     })
+}
+
+#[tauri::command]
+fn set_target(state: State<'_, AppState>, project: String, minutes: u32) -> Result<Snapshot> {
+    state.with(|store| {
+        store.set_target(&project, minutes)?;
+        Ok(store.snapshot())
+    })
+}
+
+#[tauri::command]
+fn bulk_edit(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    project: Option<String>,
+    add_tags: Vec<String>,
+) -> Result<Snapshot> {
+    state.with(|store| {
+        store.bulk_edit(&ids, project.clone(), add_tags.clone())?;
+        Ok(store.snapshot())
+    })
+}
+
+/// Writes `<folder>/Invoices/<month>.md` — the billing summary for one month.
+#[tauri::command]
+async fn write_invoice(state: State<'_, AppState>, month: String) -> Result<String> {
+    let (settings, entries, rates) = state.with(|store| {
+        Ok((
+            store.settings.clone(),
+            store.entries.clone(),
+            store.project_rates.clone(),
+        ))
+    })?;
+
+    let block = invoice::render(
+        &entries,
+        &month,
+        settings.round_minutes,
+        &rates,
+        &settings.currency,
+    )?;
+
+    let dav = webdav::Dav::from_settings(&settings)?;
+    let path = vault_path(&settings, &format!("Invoices/{month}.md"));
+    if let Some(folder) = paths::parent(&path) {
+        dav.ensure_folder(&folder).await?;
+    }
+    let existing = dav.get(&path).await?;
+    let merged = markdown::merge(existing.as_deref(), &block, &month, &settings.note_tag);
+    dav.put(&path, merged).await?;
+
+    Ok(format!("Wrote Invoices/{month}.md"))
 }
 
 #[tauri::command]
@@ -440,6 +493,9 @@ pub fn run() {
             rename_project,
             set_rate,
             set_auto_tags,
+            set_target,
+            bulk_edit,
+            write_invoice,
             toggle_pin,
             split_entry,
             merge_with_next,

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { projectColor } from "../colors";
 import { amountOf, anyRates, formatMoney, rateFor, totalAmount } from "../money";
 import {
-  addDays, addMonths, buckets, dayTimeline, daysInMonth, daysTracked, inPreviousRange, inRange,
+  addDays, addMonths, buckets, consistency, dayTimeline, daysInMonth, daysTracked, inPreviousRange, inRange,
   monthKey, orderedProjects, overlapping, projectTotals, rangeDays, startOfWeek, tagsUsed,
 } from "../stats";
 import { dayKey, formatShort, localIso, weekKey, withDay, withTime } from "../time";
@@ -235,6 +235,39 @@ describe("overlaps", () => {
     expect(overlapping(nine, [{ ...ten, id: "r", start: nine.start, end: null }])).toHaveLength(0);
     expect(overlapping(nine, [entry("2026-09-07", "09:00", "10:00")])).toHaveLength(0);
     expect(overlapping({ ...nine, end: null }, [ten])).toHaveLength(0);
+  });
+});
+
+describe("consistency", () => {
+  const day = (back: number) => addDays("2026-09-08", -back);
+  const on = (back: number) => entry(day(back), "09:00", "10:00");
+
+  it("counts an unbroken run up to today", () => {
+    const streak = consistency([on(0), on(1), on(2), on(4)], NOW);
+    expect(streak.current).toBe(3);
+    expect(streak.longest).toBe(3);
+  });
+
+  it("does not break the streak just because today is still empty", () => {
+    expect(consistency([on(1), on(2)], NOW).current).toBe(2);
+  });
+
+  it("does break after two empty days", () => {
+    expect(consistency([on(2), on(3)], NOW).current).toBe(0);
+  });
+
+  it("remembers the longest run and the best day", () => {
+    const streak = consistency(
+      [on(10), on(9), on(8), on(7), on(0), entry(day(9), "13:00", "18:00")],
+      NOW,
+    );
+    expect(streak.longest).toBe(4);
+    expect(streak.best?.day).toBe(day(9));
+    expect(streak.best?.seconds).toBe(3600 + 5 * 3600);
+  });
+
+  it("has nothing to say about an empty history", () => {
+    expect(consistency([], NOW)).toEqual({ current: 0, longest: 0, best: null });
   });
 });
 

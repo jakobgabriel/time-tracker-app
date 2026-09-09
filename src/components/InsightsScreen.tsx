@@ -3,12 +3,14 @@ import { useState } from "react";
 import { projectColor } from "../lib/colors";
 import { amountOf, anyRates, formatMoney } from "../lib/money";
 import {
-  buckets, daysTracked, inPreviousRange, inRange, projectTotals, tagsUsed, type Range,
+  buckets, consistency, daysTracked, inPreviousRange, inRange, projectTotals, tagsUsed,
+  type Range,
 } from "../lib/stats";
 import { dayLabel, entrySeconds, formatShort, totalSeconds } from "../lib/time";
 import type { Snapshot } from "../lib/types";
+import { TableIcon } from "./Icons";
 
-type Props = { snapshot: Snapshot; nowMs: number };
+type Props = { snapshot: Snapshot; nowMs: number; onInvoice: (month: string) => void };
 
 const RANGES: { key: Range; label: string; compare: string }[] = [
   { key: "week", label: "Week", compare: "last week" },
@@ -16,7 +18,7 @@ const RANGES: { key: Range; label: string; compare: string }[] = [
   { key: "all", label: "All", compare: "" },
 ];
 
-export function InsightsScreen({ snapshot, nowMs }: Props) {
+export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
   const [range, setRange] = useState<Range>("week");
   const [selected, setSelected] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -33,6 +35,8 @@ export function InsightsScreen({ snapshot, nowMs }: Props) {
   const total = totalSeconds(entries, nowMs);
   const delta = total - totalSeconds(previous, nowMs);
   const tracked = daysTracked(entries, nowMs);
+  const streak = consistency(scope, nowMs);
+  const targets = snapshot.projectTargets;
   const projects = projectTotals(entries, nowMs);
   const goal = snapshot.settings.dailyGoalMinutes * 60;
   const rates = snapshot.projectRates;
@@ -135,10 +139,29 @@ export function InsightsScreen({ snapshot, nowMs }: Props) {
           <span className="v">{formatShort(tracked ? Math.round(total / tracked) : 0)}</span>
         </div>
         <div>
-          <span className="k">Sessions</span>
-          <span className="v">{entries.length}</span>
+          <span className="k">Streak</span>
+          <span className="v">
+            {streak.current} day{streak.current === 1 ? "" : "s"}
+          </span>
+          {streak.longest > streak.current && (
+            <span className="k">best {streak.longest}</span>
+          )}
+        </div>
+        <div>
+          <span className="k">Best day</span>
+          <span className="v">{formatShort(streak.best?.seconds ?? 0)}</span>
+          {streak.best && <span className="k">{dayLabel(streak.best.day)}</span>}
         </div>
       </div>
+
+      {range === "month" && priced && (
+        <button
+          className="btn wide"
+          onClick={() => onInvoice(new Date(nowMs).toISOString().slice(0, 7))}
+        >
+          <TableIcon /> Write the invoice note for this month
+        </button>
+      )}
 
       <div className="section-title">
         <span>Projects</span>
@@ -149,38 +172,40 @@ export function InsightsScreen({ snapshot, nowMs }: Props) {
         <p className="empty">Nothing tracked in this range yet.</p>
       ) : (
         <div className="list">
-          {projects.map((item) => (
-            <div key={item.project} className="project-row">
-              <span className="name">
-                <span className="swatch" style={{ background: projectColor(item.project) }} />
-                {item.project}
-              </span>
-              <span className="dur">{formatShort(item.seconds)}</span>
-              <span className="track">
-                <span
-                  className="fill"
-                  style={{
-                    width: `${Math.max(item.share * 100, 1.5)}%`,
-                    background: projectColor(item.project),
-                  }}
-                />
-              </span>
-              <span className="share">
-                {/* The share is always there; money joins it for a priced project,
-                    so a column never mixes two different units. */}
-                {priced && amountOf(rates, item.project, item.seconds) > 0 && (
-                  <b>
-                    {formatMoney(
-                      amountOf(rates, item.project, item.seconds),
-                      snapshot.settings.currency,
-                    )}{" "}
-                    ·{" "}
-                  </b>
-                )}
-                {Math.round(item.share * 100)}%
-              </span>
-            </div>
-          ))}
+          {projects.map((item) => {
+            // A weekly target replaces the share bar rather than adding a
+            // second one: two identical bars meaning different things is worse
+            // than either on its own.
+            const target = range === "week" ? (targets[item.project] ?? 0) * 60 : 0;
+            const ratio = target > 0 ? Math.min(item.seconds / target, 1) : item.share;
+            const amount = amountOf(rates, item.project, item.seconds);
+            return (
+              <div key={item.project} className="project-row">
+                <span className="name">
+                  <span className="swatch" style={{ background: projectColor(item.project) }} />
+                  {item.project}
+                </span>
+                <span className="dur">{formatShort(item.seconds)}</span>
+                <span className="track">
+                  <span
+                    className="fill"
+                    style={{
+                      width: `${Math.max(ratio * 100, 1.5)}%`,
+                      background: projectColor(item.project),
+                    }}
+                  />
+                </span>
+                <span className="share">
+                  {priced && amount > 0 && (
+                    <b>{formatMoney(amount, snapshot.settings.currency)} · </b>
+                  )}
+                  {target > 0
+                    ? `${Math.round((item.seconds / target) * 100)}% of ${formatShort(target)}`
+                    : `${Math.round(item.share * 100)}%`}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

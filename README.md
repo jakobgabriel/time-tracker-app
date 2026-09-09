@@ -24,14 +24,17 @@ yourself.
   as the day goes on; the chart draws it as a line. With no goal, the ring becomes a second hand
   that sweeps once a minute while a timer runs.
 - **Insights.** Week, month or all time: total against the period before it, a bar per day (tap
-  one for its figure), tracked days, average day, and where the hours actually went, per project.
-  Filter the whole screen down to a single tag — `#billable` and the chart, the totals and the
-  money all follow.
+  one for its figure), tracked days, average day, your current streak and best day, and where the
+  hours actually went, per project. Filter the whole screen down to a single tag — `#billable` and
+  the chart, the totals and the money all follow. Give a project a weekly target and its bar shows
+  progress against it instead of its share.
 - **Money, only if you want it.** Give a project an hourly rate and amounts appear in Insights, in
   the CSV and in the note's per-project table. Leave rates empty and Tempo never mentions money.
 - **Fix things later.** Every entry can be edited — project, date, start, end, note, tags — or
   added by hand for the meeting you forgot to track. Search history by project, note or tag, and
   pick an old entry back up with **Start this project again**. Deleting anything offers an undo.
+  Search, then **Edit all matching entries** to move them to another project or add a tag in one
+  go — for cleaning up after a rename or a forgotten tag.
   Forgot to hit start? Nudge a running timer's start by five minutes either way, right on the dial.
   An entry that overlaps another says so once before it saves.
 - **A timer left running overnight is caught.** Past the session limit the dial turns amber and
@@ -188,6 +191,12 @@ header name — `date`, `start` and `end` are required, `project`, `note` and `t
 present, anything else is ignored — so an export from another tracker usually works after renaming
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
+
+### The invoice note
+
+In the month view of Insights, **Write the invoice note** puts `Invoices/2026-09.md` in the vault:
+hours, rate and amount per project, a total, and a breakdown per tag, with `billable::` and
+`days-worked::` as inline fields. It is the note an invoice gets written from.
 
 ### A note per project
 
