@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { projectColor } from "../colors";
 import { amountOf, anyRates, formatMoney, rateFor, totalAmount } from "../money";
 import {
-  addDays, addMonths, buckets, daysInMonth, daysTracked, inPreviousRange, inRange,
+  addDays, addMonths, buckets, dayTimeline, daysInMonth, daysTracked, inPreviousRange, inRange,
   monthKey, overlapping, projectTotals, rangeDays, startOfWeek, tagsUsed,
 } from "../stats";
 import { dayKey, formatShort, localIso, weekKey, withDay, withTime } from "../time";
@@ -143,6 +143,76 @@ describe("totals", () => {
     // Started 13:00 +02:00; NOW is 14:00 local in the test environment's zone,
     // so only the sign matters here, not the exact figure.
     expect(projectTotals([running], NOW)[0].seconds).toBeGreaterThan(0);
+  });
+});
+
+describe("the day timeline", () => {
+  const day = "2026-09-08";
+  // Mid-afternoon, so "now" sits inside the working window.
+  const afternoon = new Date(2026, 8, 8, 15, 0, 0).getTime();
+
+  it("shows a working day even when nothing was tracked", () => {
+    const empty = dayTimeline([], day, afternoon);
+    expect([empty.start, empty.end]).toEqual([8 * 60, 18 * 60]);
+    expect(empty.blocks).toHaveLength(0);
+  });
+
+  it("widens the window to fit early and late work", () => {
+    const early = dayTimeline([entry(day, "06:20", "07:00")], day, afternoon);
+    expect(early.start).toBe(6 * 60);
+    const late = dayTimeline([entry(day, "20:00", "21:40")], day, afternoon);
+    expect(late.end).toBe(22 * 60);
+  });
+
+  it("finds the gaps between sessions", () => {
+    const timeline = dayTimeline(
+      [entry(day, "09:00", "10:30"), entry(day, "11:00", "12:00")],
+      day,
+      afternoon,
+    );
+    expect(timeline.gaps.map((g) => [g.fromTime, g.toTime])).toEqual([
+      ["08:00", "09:00"], // before the first session
+      ["10:30", "11:00"], // between them
+      ["12:00", "15:00"], // since the last one, up to now
+    ]);
+    expect(timeline.gapSeconds).toBe((60 + 30 + 180) * 60);
+  });
+
+  it("ignores a five-minute breather between two sessions", () => {
+    const timeline = dayTimeline(
+      [entry(day, "09:00", "10:00"), entry(day, "10:05", "15:00")],
+      day,
+      afternoon,
+    );
+    expect(timeline.gaps.map((g) => g.fromTime)).toEqual(["08:00"]);
+  });
+
+  it("does not call the rest of the day a gap before it happens", () => {
+    const morning = new Date(2026, 8, 8, 10, 0, 0).getTime();
+    const timeline = dayTimeline([entry(day, "09:00", "10:00")], day, morning);
+    expect(timeline.gaps.map((g) => [g.fromTime, g.toTime])).toEqual([["08:00", "09:00"]]);
+  });
+
+  it("runs a live timer up to now and leaves no gap behind it", () => {
+    const running: Entry = { ...entry(day, "14:00", "15:00"), end: null };
+    const timeline = dayTimeline([running], day, afternoon);
+    expect(timeline.blocks[0].to).toBe(15 * 60);
+    expect(timeline.gaps.map((g) => g.toTime)).toEqual(["14:00"]);
+  });
+
+  it("does not produce a negative gap from overlapping entries", () => {
+    const timeline = dayTimeline(
+      [entry(day, "09:00", "12:00"), entry(day, "10:00", "11:00")],
+      day,
+      afternoon,
+    );
+    expect(timeline.gaps.every((gap) => gap.to > gap.from)).toBe(true);
+    expect(timeline.gaps.map((g) => g.fromTime)).toEqual(["08:00", "12:00"]);
+  });
+
+  it("leaves other days alone", () => {
+    const timeline = dayTimeline([entry("2026-09-07", "09:00", "10:00")], day, afternoon);
+    expect(timeline.blocks).toHaveLength(0);
   });
 });
 

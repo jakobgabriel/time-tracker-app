@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, errorMessage } from "./lib/api";
-import { dayKey, formatShort, localIso, plusMinutes, totalSeconds } from "./lib/time";
+import {
+  dayKey, formatShort, localIso, plusMinutes, totalSeconds, withDay, withTime,
+} from "./lib/time";
 import type { Entry, Settings, Snapshot } from "./lib/types";
 import { EntrySheet } from "./components/EntrySheet";
 import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
@@ -38,6 +40,19 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [tab, setTab] = useState<Tab>("track");
   const [editing, setEditing] = useState<Entry | null>(null);
+
+  /** Turns an untracked stretch into a half-filled entry, ready to name. */
+  const fillGap = useCallback((day: string, from: string, to: string) => {
+    const base = localIso();
+    setEditing({
+      id: "",
+      project: "",
+      note: "",
+      tags: [],
+      start: withTime(withDay(base, day), from),
+      end: withTime(withDay(base, day), to),
+    });
+  }, []);
   const [project, setProject] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -168,6 +183,7 @@ export default function App() {
           }}
           onEdit={setEditing}
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
+          onFillGap={fillGap}
           onShiftStart={(entry, minutes) =>
             run(() => api.saveEntry({ ...entry, start: plusMinutes(entry.start, minutes) }))
           }
@@ -188,6 +204,7 @@ export default function App() {
           nowMs={nowMs}
           onEdit={setEditing}
           onAdd={() => setEditing(blankEntry())}
+          onFillGap={fillGap}
         />
       )}
 
@@ -211,6 +228,18 @@ export default function App() {
             setBusy(true);
             try {
               showToast(await api.exportCsv(), "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          onImport={async () => {
+            setBusy(true);
+            try {
+              const message = await api.importCsv();
+              setSnapshot(await api.snapshot());
+              showToast(message, "ok");
             } catch (error) {
               showToast(errorMessage(error), "error");
             } finally {

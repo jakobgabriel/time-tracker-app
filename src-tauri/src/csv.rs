@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::models::Entry;
 use crate::time::{decimal_hours, duration_seconds, hhmm, local_day, round_seconds};
 
@@ -52,6 +52,95 @@ pub fn render(entries: &[Entry], round: u32, rates: &BTreeMap<String, f64>) -> R
         ));
     }
     Ok(out)
+}
+
+/// Splits one CSV line, honouring quotes and doubled quotes inside them.
+fn split_row(line: &str) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    let mut chars = line.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' if quoted && chars.peek() == Some(&'"') => {
+                current.push('"');
+                chars.next();
+            }
+            '"' => quoted = !quoted,
+            ',' if !quoted => fields.push(std::mem::take(&mut current)),
+            _ => current.push(ch),
+        }
+    }
+    fields.push(current);
+    fields
+}
+
+/// Reads a CSV back into entries.
+///
+/// Columns are found by their header name, so a file exported by Tempo, or a
+/// hand-made one with the same names in another order, both work. Rows that
+/// cannot be read are skipped and counted rather than failing the import.
+pub fn parse(text: &str, offset: &str) -> Result<(Vec<Entry>, usize)> {
+    let mut lines = text.lines().filter(|line| !line.trim().is_empty());
+    let Some(header) = lines.next() else {
+        return Err(AppError::Invalid("that file is empty".into()));
+    };
+
+    let names: Vec<String> = split_row(header)
+        .iter()
+        .map(|name| name.trim().trim_start_matches('\u{feff}').to_lowercase())
+        .collect();
+    let column = |wanted: &str| names.iter().position(|name| name == wanted);
+
+    let (Some(date), Some(start), Some(end)) = (column("date"), column("start"), column("end"))
+    else {
+        return Err(AppError::Invalid(
+            "the file needs date, start and end columns".into(),
+        ));
+    };
+    let project = column("project");
+    let note = column("note");
+    let tags = column("tags");
+
+    let mut entries = Vec::new();
+    let mut skipped = 0;
+    for line in lines {
+        let row = split_row(line);
+        let get = |index: Option<usize>| {
+            index
+                .and_then(|i| row.get(i))
+                .map(|value| value.trim().to_string())
+                .unwrap_or_default()
+        };
+        let (Some(day), Some(from), Some(to)) = (row.get(date), row.get(start), row.get(end))
+        else {
+            skipped += 1;
+            continue;
+        };
+
+        let begins = format!("{}T{}:00{}", day.trim(), from.trim(), offset);
+        let ends = format!("{}T{}:00{}", day.trim(), to.trim(), offset);
+        if crate::time::duration_seconds(&begins, &ends).unwrap_or(-1) <= 0 {
+            skipped += 1;
+            continue;
+        }
+
+        entries.push(Entry {
+            id: uuid::Uuid::new_v4().to_string(),
+            project: get(project),
+            note: get(note),
+            tags: get(tags)
+                .split_whitespace()
+                .map(|tag| tag.trim_start_matches('#').to_string())
+                .filter(|tag| !tag.is_empty())
+                .collect(),
+            start: begins,
+            end: Some(ends),
+        });
+    }
+
+    Ok((entries, skipped))
 }
 
 #[cfg(test)]
@@ -132,6 +221,79 @@ mod tests {
         assert_eq!(
             render(&[running], 0, &no_rates()).unwrap().lines().count(),
             1
+        );
+    }
+
+    #[test]
+    fn reads_back_what_it_wrote() {
+        let written = render(
+            &[entry(
+                "Acme, Inc",
+                "said \"hi\"",
+                "2026-09-07",
+                "09:00",
+                "10:30",
+            )],
+            0,
+            &no_rates(),
+        )
+        .unwrap();
+        let (entries, skipped) = parse(&written, "+02:00").unwrap();
+        assert_eq!(skipped, 0);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].project, "Acme, Inc");
+        assert_eq!(entries[0].note, "said \"hi\"");
+        assert_eq!(entries[0].tags, vec!["billable".to_string()]);
+        assert_eq!(entries[0].start, "2026-09-07T09:00:00+02:00");
+        assert_eq!(entries[0].end.as_deref(), Some("2026-09-07T10:30:00+02:00"));
+        assert!(!entries[0].id.is_empty());
+    }
+
+    #[test]
+    fn takes_columns_in_any_order_and_ignores_extras() {
+        let text =
+            "project,End,note,DATE,start,invoice\nAcme,10:00,kickoff,2026-09-08,09:00,INV-1\n";
+        let (entries, skipped) = parse(text, "+00:00").unwrap();
+        assert_eq!(skipped, 0);
+        assert_eq!(entries[0].project, "Acme");
+        assert_eq!(entries[0].note, "kickoff");
+        assert_eq!(entries[0].start, "2026-09-08T09:00:00+00:00");
+    }
+
+    #[test]
+    fn skips_rows_it_cannot_read_rather_than_failing() {
+        let text = concat!(
+            "date,start,end,project\n",
+            "2026-09-08,09:00,10:00,Good\n",
+            "not-a-date,09:00,10:00,Bad\n",
+            "2026-09-08,10:00,09:00,Backwards\n",
+            "2026-09-08\n",
+        );
+        let (entries, skipped) = parse(text, "+00:00").unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].project, "Good");
+        assert_eq!(skipped, 3);
+    }
+
+    #[test]
+    fn explains_a_file_it_cannot_use() {
+        assert!(parse("", "+00:00")
+            .unwrap_err()
+            .to_string()
+            .contains("empty"));
+        assert!(parse("a,b\n1,2\n", "+00:00")
+            .unwrap_err()
+            .to_string()
+            .contains("date, start and end"));
+    }
+
+    #[test]
+    fn strips_hashes_from_imported_tags() {
+        let text = "date,start,end,tags\n2026-09-08,09:00,10:00,#billable #meeting\n";
+        let (entries, _) = parse(text, "+00:00").unwrap();
+        assert_eq!(
+            entries[0].tags,
+            vec!["billable".to_string(), "meeting".to_string()]
         );
     }
 

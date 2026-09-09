@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Insights | Filtered by a tag | Forgotten timer |
+| Track | Insights | Filtered by a tag | Filling a gap |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Insights filtered to one tag](docs/screenshots/insights-tag.png) | ![A timer left running](docs/screenshots/forgotten.png) |
+| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Insights filtered to one tag](docs/screenshots/insights-tag.png) | ![Tapping a gap opens a prefilled entry](docs/screenshots/fill-gap.png) |
 
 ## What it does
 
@@ -17,6 +17,9 @@ yourself.
   switches projects in a single tap.
 - **Never lose a session.** The elapsed time is derived from the start timestamp, so it stays
   correct while the app is backgrounded, killed, or the phone restarts.
+- **A strip of your day.** Every day shows as a single bar: coloured blocks for what you tracked,
+  hatched stretches for what you didn't. Tap a gap and you get an entry already filled in with
+  those times — retro-filling a forgotten morning takes one tap and a project name.
 - **A daily goal you can read at a glance.** Set one and the ring around the start button fills
   as the day goes on; the chart draws it as a line. With no goal, the ring becomes a second hand
   that sweeps once a minute while a timer runs.
@@ -165,6 +168,14 @@ Obsidian will be overwritten on the next push. Anything outside the block is nev
 - **Sync when a timer stops** — on by default; a sync that failed while offline is retried the next
   time the app comes to the foreground. Turn it off to sync by hand.
 
+### Importing
+
+Drop a `tempo-import.csv` next to your notes and press **Import CSV**. Columns are found by their
+header name — `date`, `start` and `end` are required, `project`, `note` and `tags` are used when
+present, anything else is ignored — so an export from another tracker usually works after renaming
+a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
+file, and importing the same file twice adds nothing the second time.
+
 ### Backup and restore
 
 With **Back up on every sync** left on, each sync also refreshes `tempo-backup.json` in the vault
@@ -224,7 +235,7 @@ re-syncing a day without disturbing the prose around the generated block.
 ```
 src/                     React UI — four screens, no router, no state library
   lib/time.ts            timestamps, durations, day and week grouping
-  lib/stats.ts           calendar arithmetic, chart buckets, project totals
+  lib/stats.ts           calendar arithmetic, chart buckets, totals, the day strip
   lib/colors.ts          the colour a project gets, derived from its name
   lib/money.ts           rates, amounts and how they are written
 src-tauri/src/
@@ -232,7 +243,7 @@ src-tauri/src/
   store.rs               the JSON document and the rules around it
   time.rs                parsing and formatting on the Rust side
   markdown.rs            note rendering and the managed-block splice
-  csv.rs                 the export
+  csv.rs                 the export and the import
   backup.rs              the JSON backup written into the vault
   sync.rs                which days end up in which note
   webdav.rs              PROPFIND / MKCOL / GET / PUT

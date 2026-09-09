@@ -203,17 +203,33 @@ impl Store {
         Ok(touched.len())
     }
 
-    /// Adds the entries a backup has and this device does not, keeping
-    /// everything already here. Restoring is additive on purpose: it repairs a
-    /// lost phone or a mistaken delete without overwriting newer work.
+    /// What makes two entries the same session even when their ids differ —
+    /// an imported CSV has no ids of its own.
+    fn fingerprint(entry: &Entry) -> (String, String, String) {
+        (
+            entry.start.clone(),
+            entry.end.clone().unwrap_or_default(),
+            entry.project.trim().to_lowercase(),
+        )
+    }
+
+    /// Adds the entries an outside source has and this device does not, keeping
+    /// everything already here. Merging is additive on purpose: it repairs a
+    /// lost phone or a mistaken delete without overwriting newer work, and
+    /// running it twice changes nothing the second time.
     pub fn merge(&mut self, incoming: Vec<Entry>, projects: Vec<String>) -> Result<usize> {
         let known: std::collections::HashSet<String> =
             self.entries.iter().map(|entry| entry.id.clone()).collect();
+        let mut seen: std::collections::HashSet<(String, String, String)> =
+            self.entries.iter().map(Self::fingerprint).collect();
 
         let mut added = 0;
         for entry in incoming {
             if entry.id.is_empty() || known.contains(&entry.id) {
                 continue;
+            }
+            if !seen.insert(Self::fingerprint(&entry)) {
+                continue; // same session, different id
             }
             self.mark_dirty(&entry)?;
             self.entries.push(entry);
@@ -438,6 +454,24 @@ mod tests {
         assert_eq!(kept.note, "mine", "local wins over the backup");
         assert!(store.projects.iter().any(|p| p == "Reading"));
         assert_eq!(store.dirty_days.len(), 1, "the restored day needs a note");
+    }
+
+    #[test]
+    fn merging_the_same_session_twice_adds_it_once() {
+        let (mut store, _dir) = store();
+        let imported = |id: &str| Entry {
+            id: id.into(),
+            project: "Acme".into(),
+            note: String::new(),
+            tags: vec![],
+            start: at(9, 0),
+            end: Some(at(10, 0)),
+        };
+
+        assert_eq!(store.merge(vec![imported("first")], vec![]).unwrap(), 1);
+        // A second import of the same CSV mints new ids for the same sessions.
+        assert_eq!(store.merge(vec![imported("second")], vec![]).unwrap(), 0);
+        assert_eq!(store.entries.len(), 1);
     }
 
     #[test]

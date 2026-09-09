@@ -34,6 +34,8 @@ export const api = {
 
   exportCsv: () => invoke<string>("export_csv"),
 
+  importCsv: () => invoke<string>("import_csv"),
+
   backup: () => invoke<string>("backup_now"),
 
   restore: () => invoke<string>("restore_backup"),

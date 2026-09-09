@@ -270,6 +270,45 @@ async fn restore_backup(state: State<'_, AppState>) -> Result<String> {
     })
 }
 
+/// Reads `tempo-import.csv` from the vault and merges it in.
+///
+/// Times in a CSV carry no timezone, so they are read in the device's current
+/// offset — the same one the export wrote them in.
+#[tauri::command]
+async fn import_csv(state: State<'_, AppState>) -> Result<String> {
+    let settings = state.with(|store| Ok(store.settings.clone()))?;
+    let dav = webdav::Dav::from_settings(&settings)?;
+    let name = "tempo-import.csv";
+
+    let Some(text) = dav.get(&vault_path(&settings, name)).await? else {
+        return Err(AppError::Invalid(format!(
+            "no {name} in the vault — put one next to your notes first"
+        )));
+    };
+
+    let offset = chrono::Local::now().format("%:z").to_string();
+    let (entries, skipped) = csv::parse(&text, &offset)?;
+    let projects: Vec<String> = entries
+        .iter()
+        .map(|entry| entry.project.trim().to_string())
+        .filter(|project| !project.is_empty())
+        .collect();
+
+    let found = entries.len();
+    let added = state.with(|store| store.merge(entries, projects))?;
+
+    let mut message = match added {
+        0 if found == 0 => "Nothing in that file could be read".to_string(),
+        0 => format!("All {found} entries were already here"),
+        _ => format!("Imported {added} of {found} entries"),
+    };
+    if skipped > 0 {
+        let rows = if skipped == 1 { "row" } else { "rows" };
+        message.push_str(&format!(", skipped {skipped} unreadable {rows}"));
+    }
+    Ok(message)
+}
+
 /// Writes every closed entry to `tempo-export.csv` next to the notes — the
 /// file an invoicing tool or a spreadsheet wants, regenerated on demand.
 #[tauri::command]
@@ -330,6 +369,7 @@ pub fn run() {
             test_connection,
             sync_now,
             export_csv,
+            import_csv,
             backup_now,
             restore_backup,
         ])

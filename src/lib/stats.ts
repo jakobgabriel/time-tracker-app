@@ -174,3 +174,86 @@ export function tagsUsed(entries: Entry[]): string[] {
 export function daysTracked(entries: Entry[], nowMs: number): number {
   return [...secondsByDay(entries, nowMs).values()].filter((seconds) => seconds > 0).length;
 }
+
+export type DayBlock = { entry: Entry; from: number; to: number };
+export type DayGap = { from: number; to: number; fromTime: string; toTime: string };
+
+export type DayTimeline = {
+  /** Window shown, in minutes since midnight. */
+  start: number;
+  end: number;
+  blocks: DayBlock[];
+  /** Untracked stretches worth offering to fill. */
+  gaps: DayGap[];
+  trackedSeconds: number;
+  gapSeconds: number;
+};
+
+const MINUTES_IN = (iso: string) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
+const clockOf = (minutes: number) =>
+  `${String(Math.floor(minutes / 60) % 24).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** Gaps shorter than this are noise between two sessions, not lost work. */
+const MIN_GAP_MINUTES = 10;
+
+/**
+ * Lays a day out on a single strip: where the tracked blocks sit and which
+ * stretches are still empty. Gaps are what makes it useful — they are the
+ * hours you meant to track and didn't.
+ */
+export function dayTimeline(entries: Entry[], day: string, nowMs: number): DayTimeline {
+  const ofDay = entries
+    .filter((entry) => dayKey(entry.start) === day)
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  const nowIso = localIso(new Date(nowMs));
+  const nowMinutes = dayKey(nowIso) === day ? MINUTES_IN(nowIso) : 24 * 60;
+
+  const spans = ofDay.map((entry) => ({
+    entry,
+    from: MINUTES_IN(entry.start),
+    // A running timer reaches up to now; one that crossed midnight stops there.
+    to: entry.end
+      ? dayKey(entry.end) === day
+        ? MINUTES_IN(entry.end)
+        : 24 * 60
+      : Math.max(nowMinutes, MINUTES_IN(entry.start)),
+  }));
+
+  // A working day by default, widened to fit whatever actually happened.
+  let start = 8 * 60;
+  let end = 18 * 60;
+  for (const span of spans) {
+    start = Math.min(start, Math.floor(span.from / 60) * 60);
+    end = Math.max(end, Math.ceil(span.to / 60) * 60);
+  }
+  end = Math.min(end, 24 * 60);
+
+  const gaps: DayGap[] = [];
+  let cursor = start;
+  for (const span of spans) {
+    if (span.from - cursor >= MIN_GAP_MINUTES) {
+      gaps.push({
+        from: cursor,
+        to: span.from,
+        fromTime: clockOf(cursor),
+        toTime: clockOf(span.from),
+      });
+    }
+    cursor = Math.max(cursor, span.to);
+  }
+  // The stretch after the last entry only counts as a gap once it is past.
+  const tail = Math.min(end, dayKey(nowIso) === day ? nowMinutes : end);
+  if (tail - cursor >= MIN_GAP_MINUTES) {
+    gaps.push({ from: cursor, to: tail, fromTime: clockOf(cursor), toTime: clockOf(tail) });
+  }
+
+  return {
+    start,
+    end,
+    blocks: spans,
+    gaps,
+    trackedSeconds: ofDay.reduce((sum, entry) => sum + entrySeconds(entry, nowMs), 0),
+    gapSeconds: gaps.reduce((sum, gap) => sum + (gap.to - gap.from) * 60, 0),
+  };
+}

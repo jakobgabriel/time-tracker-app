@@ -4,6 +4,7 @@ import {
   dayLabel, entrySeconds, formatShort, groupByDay, totalSeconds, weekKey,
 } from "../lib/time";
 import type { Entry, Snapshot } from "../lib/types";
+import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
 import { PlusIcon } from "./Icons";
 
@@ -12,9 +13,10 @@ type Props = {
   nowMs: number;
   onEdit: (entry: Entry) => void;
   onAdd: () => void;
+  onFillGap: (day: string, from: string, to: string) => void;
 };
 
-export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd }: Props) {
+export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap }: Props) {
   const [query, setQuery] = useState("");
 
   const matches = useMemo(() => {
@@ -81,6 +83,17 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd }: Props) {
                 <span className="label">{dayLabel(day)}</span>
                 <span className="total">{formatShort(totalSeconds(entries, nowMs))}</span>
               </div>
+              {/* Only for an unfiltered view: a strip of "matches" would lie. */}
+              {!query && (
+                <DayTimeline
+                  entries={entries}
+                  day={day}
+                  nowMs={nowMs}
+                  onFillGap={onFillGap}
+                  onSelect={onEdit}
+                  compact
+                />
+              )}
               <div className="list">
                 {entries
                   .slice()

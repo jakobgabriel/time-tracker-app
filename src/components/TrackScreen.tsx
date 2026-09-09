@@ -4,6 +4,7 @@ import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSe
   from "../lib/time";
 import { projectColor } from "../lib/colors";
 import type { Entry, Snapshot } from "../lib/types";
+import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
 import { PlusIcon } from "./Icons";
 
@@ -19,10 +20,11 @@ type Props = {
   onNote: (note: string) => void;
   onTrim: (entry: Entry, minutes: number) => void;
   onShiftStart: (entry: Entry, minutes: number) => void;
+  onFillGap: (day: string, from: string, to: string) => void;
 };
 
 export function TrackScreen({
-  snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart,
+  snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart, onFillGap,
 }: Props) {
   const { entries, projects } = snapshot;
   const running = entries.find((entry) => !entry.end);
@@ -196,6 +198,15 @@ export function TrackScreen({
         <span>Today</span>
         <span>{formatShort(todaySeconds)}</span>
       </div>
+
+      <DayTimeline
+        entries={todayEntries}
+        day={today}
+        nowMs={nowMs}
+        onFillGap={onFillGap}
+        onSelect={onEdit}
+      />
+
       {todayEntries.length === 0 ? (
         <p className="empty">Nothing tracked yet today.</p>
       ) : (

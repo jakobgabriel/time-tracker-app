@@ -12,6 +12,7 @@ type Props = {
   onTest: (settings: Settings) => void;
   onSync: (full: boolean) => void;
   onExport: () => void;
+  onImport: () => void;
   onBackup: () => void;
   onRestore: () => void;
   onOpenProject: (name: string) => void;
@@ -29,7 +30,7 @@ const goalLabel = (minutes: number) =>
       : `${Math.floor(minutes / 60)}\u00a0h ${minutes % 60} min`;
 
 export function SettingsScreen({
-  snapshot, busy, onSave, onTest, onSync, onExport, onBackup, onRestore, onOpenProject,
+  snapshot, busy, onSave, onTest, onSync, onExport, onImport, onBackup, onRestore, onOpenProject,
 }: Props) {
   const [form, setForm] = useState<Settings>(snapshot.settings);
 
@@ -278,12 +279,18 @@ export function SettingsScreen({
             Rewrite all
           </button>
         </div>
-        <button className="btn wide" onClick={onExport} disabled={busy}>
-          <TableIcon /> Export CSV to the vault
-        </button>
+        <div className="btn-row">
+          <button className="btn" onClick={onExport} disabled={busy}>
+            <TableIcon /> Export CSV
+          </button>
+          <button className="btn" onClick={onImport} disabled={busy}>
+            Import CSV
+          </button>
+        </div>
         <p className="small muted" style={{ margin: 0 }}>
-          Writes <code>tempo-export.csv</code> next to your notes — every entry, ready for a
-          spreadsheet or an invoice.
+          Export writes <code>tempo-export.csv</code> next to your notes — every entry, ready for a
+          spreadsheet or an invoice. Import reads <code>tempo-import.csv</code> from the same folder
+          and adds whatever this device is missing.
         </p>
       </div>
 
