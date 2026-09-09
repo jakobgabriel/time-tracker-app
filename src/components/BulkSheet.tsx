@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useT } from "../lib/i18n";
 import type { Entry } from "../lib/types";
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 export function BulkSheet({ entries, projects, onApply, onClose }: Props) {
   const [project, setProject] = useState("");
   const [tags, setTags] = useState("");
+  const t = useT();
 
   const addTags = tags
     .split(",")
@@ -26,12 +28,12 @@ export function BulkSheet({ entries, projects, onApply, onClose }: Props) {
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Edit the matching entries">
         <div className="grabber" />
         <h2>
-          {entries.length} {entries.length === 1 ? "entry" : "entries"}
+          {t(entries.length === 1 ? "{n} entry" : "{n} entries", { n: entries.length })}
         </h2>
 
         <div className="stack">
           <div className="field">
-            <label htmlFor="bulk-project">Move to project</label>
+            <label htmlFor="bulk-project">{t("Move to project")}</label>
             <input
               id="bulk-project"
               type="text"
@@ -48,7 +50,7 @@ export function BulkSheet({ entries, projects, onApply, onClose }: Props) {
           </div>
 
           <div className="field">
-            <label htmlFor="bulk-tags">Add tags</label>
+            <label htmlFor="bulk-tags">{t("Add tags")}</label>
             <input
               id="bulk-tags"
               type="text"
@@ -63,14 +65,14 @@ export function BulkSheet({ entries, projects, onApply, onClose }: Props) {
 
           <div className="btn-row">
             <button className="btn" onClick={onClose}>
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               className={ready ? "btn primary" : "btn"}
               disabled={!ready}
               onClick={() => onApply(project.trim() || null, addTags)}
             >
-              Apply to {entries.length}
+              {t("Apply to {n}", { n: entries.length })}
             </button>
           </div>
         </div>

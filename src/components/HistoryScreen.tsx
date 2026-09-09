@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import {
   dayLabel, entrySeconds, formatShort, groupByDay, totalSeconds, weekKey,
 } from "../lib/time";
+import { useT } from "../lib/i18n";
 import type { Entry, Snapshot } from "../lib/types";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
@@ -19,6 +20,7 @@ type Props = {
 
 export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBulkEdit }: Props) {
   const [query, setQuery] = useState("");
+  const t = useT();
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -47,16 +49,16 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
         <input
           type="text"
           inputMode="search"
-          placeholder="Search project, note or tag"
+          placeholder={t("Search project, note or tag")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         {query ? (
-          <button className="clear" aria-label="Clear search" onClick={() => setQuery("")}>
+          <button className="clear" aria-label={t("Clear search")} onClick={() => setQuery("")}>
             ✕
           </button>
         ) : (
-          <button className="clear" aria-label="Add entry" onClick={onAdd}>
+          <button className="clear" aria-label={t("Add entry")} onClick={onAdd}>
             <PlusIcon />
           </button>
         )}
@@ -64,15 +66,15 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
 
       {query.trim() && matches.length > 0 && (
         <button className="btn wide" onClick={() => onBulkEdit(matches)} style={{ marginBottom: 4 }}>
-          Edit all {matches.length} matching {matches.length === 1 ? "entry" : "entries"}
+          {t("Edit all {n} matching entries", { n: matches.length })}
         </button>
       )}
 
       {days.length === 0 ? (
         <p className="empty" style={{ marginTop: 16 }}>
           {query
-            ? `Nothing matches “${query.trim()}”.`
-            : "No history yet. Start a timer and it will show up here."}
+            ? t("Nothing matches “{query}”.", { query: query.trim() })
+            : t("No history yet. Start a timer and it will show up here.")}
         </p>
       ) : (
         days.map(([day, entries]) => {
@@ -83,7 +85,8 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
             <section key={day}>
               {isNewWeek && (
                 <h2 className="week-head">
-                  Week {week.split("-W")[1]} · {formatShort(weekTotals.get(week) ?? 0)}
+                  {t("Week {n}", { n: week.split("-W")[1] })} ·{" "}
+                  {formatShort(weekTotals.get(week) ?? 0)}
                 </h2>
               )}
               <div className="day-head">
@@ -121,8 +124,10 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
 
       {days.length > 0 && (
         <p className="small muted" style={{ marginTop: 18, textAlign: "center" }}>
-          {matches.length} {query ? "matching " : ""}entries ·{" "}
-          {formatShort(matches.reduce((sum, e) => sum + entrySeconds(e, nowMs), 0))} total
+          {t(query ? "{n} matching entries · {total} total" : "{n} entries · {total} total", {
+            n: matches.length,
+            total: formatShort(matches.reduce((sum, e) => sum + entrySeconds(e, nowMs), 0)),
+          })}
         </p>
       )}
     </div>

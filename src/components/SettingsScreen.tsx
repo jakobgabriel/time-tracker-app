@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { projectColor } from "../lib/colors";
+import { useT, type Translate } from "../lib/i18n";
 import { relativeTime } from "../lib/time";
 import type { Settings, Snapshot } from "../lib/types";
 import { CloudIcon, ShieldIcon, TableIcon } from "./Icons";
@@ -22,12 +23,12 @@ const ROUNDING = [0, 5, 6, 10, 15, 30];
 const GOALS = [0, 240, 360, 420, 450, 480, 600];
 const LIMITS = [0, 240, 360, 480, 600, 720];
 
-const goalLabel = (minutes: number) =>
+const goalLabel = (minutes: number, t: Translate) =>
   minutes === 0
-    ? "No goal"
+    ? t("No goal")
     : minutes % 60 === 0
-      ? `${minutes / 60} hours`
-      : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+      ? t("{n} hours", { n: minutes / 60 })
+      : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 
 /** A collapsible section; the summary carries the state so it can stay shut. */
 function Section({
@@ -55,6 +56,7 @@ function Section({
 export function SettingsScreen({
   snapshot, busy, onSave, onTest, onSync, onExport, onImport, onBackup, onRestore, onOpenProject,
 }: Props) {
+  const t = useT();
   const [form, setForm] = useState<Settings>(snapshot.settings);
 
   // Adopt what the backend confirmed, but only when it actually changed — a
@@ -72,12 +74,12 @@ export function SettingsScreen({
   return (
     <div className="screen settings">
       <Section
-        title="Obsidian"
-        status={connected ? new URL(connected).host : "not connected"}
+        title={t("Obsidian")}
+        status={connected ? new URL(connected).host : t("not connected")}
         open={!connected}
       >
         <div className="field">
-          <label htmlFor="url">Server URL</label>
+          <label htmlFor="url">{t("Server URL")}</label>
           <input
             id="url"
             type="url"
@@ -90,12 +92,12 @@ export function SettingsScreen({
             onChange={(event) => set("webdavUrl", event.target.value)}
           />
           <span className="help">
-            The WebDAV root of the account — the vault folder is added below.
+            {t("The WebDAV root of the account — the vault folder is added below.")}
           </span>
         </div>
 
         <div className="field">
-          <label htmlFor="user">Username</label>
+          <label htmlFor="user">{t("Username")}</label>
           <input
             id="user"
             type="text"
@@ -108,18 +110,18 @@ export function SettingsScreen({
         </div>
 
         <div className="field">
-          <label htmlFor="pass">Password</label>
+          <label htmlFor="pass">{t("Password")}</label>
           <input
             id="pass"
             type="password"
             value={form.password}
             onChange={(event) => set("password", event.target.value)}
           />
-          <span className="help">Use an app password if your provider offers one.</span>
+          <span className="help">{t("Use an app password if your provider offers one.")}</span>
         </div>
 
         <div className="field">
-          <label htmlFor="folder">Folder in the vault</label>
+          <label htmlFor="folder">{t("Folder in the vault")}</label>
           <input
             id="folder"
             type="text"
@@ -130,23 +132,23 @@ export function SettingsScreen({
             onChange={(event) => set("vaultFolder", event.target.value)}
           />
           <span className="help">
-            Holds the notes, the backup and the exports. Created if it does not exist.
+            {t("Holds the notes, the backup and the exports. Created if it does not exist.")}
           </span>
         </div>
 
         <button className="btn wide" onClick={() => onTest(form)} disabled={busy || !form.webdavUrl.trim()}>
-          Test the connection
+          {t("Test the connection")}
         </button>
       </Section>
 
       <Section
-        title="Notes"
-        status={`${form.fileLayout === "daily" ? "one per day" : "one per month"}${
-          form.notePattern.trim() ? " · custom path" : ""
+        title={t("Notes")}
+        status={`${t(form.fileLayout === "daily" ? "one per day" : "one per month")}${
+          form.notePattern.trim() ? ` · ${t("custom path")}` : ""
         }`}
       >
         <div className="field">
-          <label htmlFor="layout">One note per</label>
+          <label htmlFor="layout">{t("One note per")}</label>
           <select
             id="layout"
             value={form.fileLayout}
@@ -156,13 +158,12 @@ export function SettingsScreen({
             <option value="monthly">Month — 2026-09.md</option>
           </select>
           <span className="help">
-            Only the block between the <code>tempo</code> markers is rewritten; the rest of the
-            note stays yours.
+            {t("Only the block between the tempo markers is rewritten; the rest of the note stays yours.")}
           </span>
         </div>
 
         <div className="field">
-          <label htmlFor="pattern">Note path</label>
+          <label htmlFor="pattern">{t("Note path")}</label>
           <input
             id="pattern"
             type="text"
@@ -181,9 +182,9 @@ export function SettingsScreen({
 
         <div className="switch">
           <span>
-            Weekly summary note
+            {t("Weekly summary note")}
             <br />
-            <span className="small muted">A roll-up per ISO week.</span>
+            <span className="small muted">{t("A roll-up per ISO week.")}</span>
           </span>
           <button
             className="track"
@@ -212,10 +213,10 @@ export function SettingsScreen({
 
         <div className="switch">
           <span>
-            Link projects
+            {t("Link projects")}
             <br />
             <span className="small muted">
-              Writes <code>[[Acme]]</code>, so the vault builds a note per project.
+              {t("Writes [[Acme]], so the vault builds a note per project.")}
             </span>
           </span>
           <button
@@ -229,10 +230,10 @@ export function SettingsScreen({
 
         <div className="switch">
           <span>
-            A note per project
+            {t("A note per project")}
             <br />
             <span className="small muted">
-              <code>Projects/Acme.md</code> gets its own log: a row per day, with totals.
+              {t("Projects/Acme.md gets its own log: a row per day, with totals.")}
             </span>
           </span>
           <button
@@ -264,7 +265,7 @@ export function SettingsScreen({
         )}
 
         <div className="field">
-          <label htmlFor="tag">Tag for new notes</label>
+          <label htmlFor="tag">{t("Tag for new notes")}</label>
           <input
             id="tag"
             type="text"
@@ -276,14 +277,14 @@ export function SettingsScreen({
       </Section>
 
       <Section
-        title="Tracking"
+        title={t("Tracking")}
         status={[
-          form.dailyGoalMinutes ? goalLabel(form.dailyGoalMinutes) : "no goal",
-          form.roundMinutes ? `${form.roundMinutes} min rounding` : "exact",
+          goalLabel(form.dailyGoalMinutes, t),
+          form.roundMinutes ? t("{n} minutes", { n: form.roundMinutes }) : t("Exact"),
         ].join(" · ")}
       >
         <div className="field">
-          <label htmlFor="goal">Daily goal</label>
+          <label htmlFor="goal">{t("Daily goal")}</label>
           <select
             id="goal"
             value={form.dailyGoalMinutes}
@@ -291,17 +292,17 @@ export function SettingsScreen({
           >
             {GOALS.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {goalLabel(minutes)}
+                {minutes === 0 ? t("No goal") : t("{n} hours", { n: minutes / 60 })}
               </option>
             ))}
           </select>
           <span className="help">
-            Draws today's progress as a ring around the start button, and a line on the chart.
+            {t("Draws today's progress as a ring around the start button, and a line on the chart.")}
           </span>
         </div>
 
         <div className="field">
-          <label htmlFor="limit">Warn about a long session</label>
+          <label htmlFor="limit">{t("Warn about a long session")}</label>
           <select
             id="limit"
             value={form.maxSessionMinutes}
@@ -309,14 +310,14 @@ export function SettingsScreen({
           >
             {LIMITS.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {minutes === 0 ? "Never" : `After ${minutes / 60} hours`}
+                {minutes === 0 ? t("Never") : t("After {n} hours", { n: minutes / 60 })}
               </option>
             ))}
           </select>
         </div>
 
         <div className="field">
-          <label htmlFor="round">Round durations</label>
+          <label htmlFor="round">{t("Round durations")}</label>
           <select
             id="round"
             value={form.roundMinutes}
@@ -324,21 +325,21 @@ export function SettingsScreen({
           >
             {ROUNDING.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {minutes === 0 ? "Exact" : `${minutes} minutes`}
+                {minutes === 0 ? t("Exact") : t("{n} minutes", { n: minutes })}
               </option>
             ))}
           </select>
           <span className="help">
-            Applies to the note and the CSV only — your raw times stay exact.
+            {t("Applies to the note and the CSV only — your raw times stay exact.")}
           </span>
         </div>
 
         <div className="switch">
           <span>
-            Split at midnight
+            {t("Split at midnight")}
             <br />
             <span className="small muted">
-              A session running past midnight counts on both days.
+              {t("A session running past midnight counts on both days.")}
             </span>
           </span>
           <button
@@ -351,7 +352,20 @@ export function SettingsScreen({
         </div>
 
         <div className="field">
-          <label htmlFor="currency">Currency symbol</label>
+          <label htmlFor="language">{t("Language")}</label>
+          <select
+            id="language"
+            value={form.language || ""}
+            onChange={(event) => set("language", event.target.value)}
+          >
+            <option value="">{t("Language")} — auto</option>
+            <option value="en">{t("English")}</option>
+            <option value="de">{t("German")}</option>
+          </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="currency">{t("Currency symbol")}</label>
           <input
             id="currency"
             type="text"
@@ -368,12 +382,12 @@ export function SettingsScreen({
       </Section>
 
       <Section
-        title="Sync"
+        title={t("Sync")}
         status={[
           snapshot.pendingDays > 0
-            ? `${snapshot.pendingDays} day(s) waiting`
-            : `synced ${relativeTime(snapshot.settings.lastSync)}`,
-          form.twoWaySync ? "two-way" : "",
+            ? t("{n} day(s) waiting", { n: snapshot.pendingDays })
+            : t("synced {when}", { when: relativeTime(snapshot.settings.lastSync) }),
+          form.twoWaySync ? t("two-way") : "",
         ]
           .filter(Boolean)
           .join(" · ")}
@@ -381,9 +395,9 @@ export function SettingsScreen({
       >
         <div className="switch">
           <span>
-            Sync when a timer stops
+            {t("Sync when a timer stops")}
             <br />
-            <span className="small muted">A failed sync is retried when you come back.</span>
+            <span className="small muted">{t("A failed sync is retried when you come back.")}</span>
           </span>
           <button
             className="track"
@@ -396,11 +410,10 @@ export function SettingsScreen({
 
         <div className="switch">
           <span>
-            Two-way sync
+            {t("Two-way sync")}
             <br />
             <span className="small muted">
-              Reads the vault's backup before writing, so a second device's work — and its
-              deletions — arrive here.
+              {t("Reads the vault's backup before writing, so a second device's work — and its deletions — arrive here.")}
             </span>
           </span>
           <button
@@ -414,34 +427,33 @@ export function SettingsScreen({
 
         <div className="btn-row">
           <button className="btn primary" onClick={() => onSync(false)} disabled={busy}>
-            <CloudIcon className={busy ? "spin" : undefined} /> Sync now
+            <CloudIcon className={busy ? "spin" : undefined} /> {t("Sync now")}
           </button>
           <button className="btn" onClick={() => onSync(true)} disabled={busy}>
-            Rewrite all
+            {t("Rewrite all")}
           </button>
         </div>
 
         <div className="btn-row">
           <button className="btn" onClick={onExport} disabled={busy}>
-            <TableIcon /> Export CSV
+            <TableIcon /> {t("Export CSV")}
           </button>
           <button className="btn" onClick={onImport} disabled={busy}>
-            Import CSV
+            {t("Import CSV")}
           </button>
         </div>
         <p className="small muted" style={{ margin: 0 }}>
-          Export writes <code>tempo-export.csv</code>; import reads <code>tempo-import.csv</code>{" "}
-          from the same folder and adds whatever this device is missing.
+          {t("Export writes tempo-export.csv; import reads tempo-import.csv from the same folder and adds whatever this device is missing.")}
         </p>
       </Section>
 
-      <Section title="Backup" status={form.autoBackup ? "on every sync" : "manual"}>
+      <Section title={t("Backup")} status={t(form.autoBackup ? "on every sync" : "manual")}>
         <div className="switch">
           <span>
-            Back up on every sync
+            {t("Back up on every sync")}
             <br />
             <span className="small muted">
-              Keeps <code>tempo-backup.json</code> in the vault. No credentials are written.
+              {t("Keeps tempo-backup.json in the vault. No credentials are written.")}
             </span>
           </span>
           <button
@@ -454,21 +466,22 @@ export function SettingsScreen({
         </div>
         <div className="btn-row">
           <button className="btn" onClick={onBackup} disabled={busy}>
-            <ShieldIcon /> Back up
+            <ShieldIcon /> {t("Back up")}
           </button>
           <button className="btn" onClick={onRestore} disabled={busy}>
-            Restore
+            {t("Restore")}
           </button>
         </div>
         <p className="small muted" style={{ margin: 0 }}>
-          Restoring merges the backup into this device: entries it does not have are added, nothing
-          here is overwritten.
+          {t("Restoring merges the backup into this device: entries it does not have are added, nothing here is overwritten.")}
         </p>
       </Section>
 
       <Section
-        title="Projects"
-        status={`${snapshot.projects.length}${snapshot.pinned.length ? ` · ${snapshot.pinned.length} pinned` : ""}`}
+        title={t("Projects")}
+        status={`${snapshot.projects.length}${
+          snapshot.pinned.length ? ` · ${t("{n} pinned", { n: snapshot.pinned.length })}` : ""
+        }`}
       >
         {snapshot.projects.length === 0 ? (
           <p className="small muted" style={{ margin: 0 }}>
@@ -477,7 +490,7 @@ export function SettingsScreen({
         ) : (
           <>
             <p className="small muted" style={{ margin: 0 }}>
-              Tap a project to rename, price, tag, pin or remove it.
+              {t("Tap a project to rename, price, tag, pin or remove it.")}
             </p>
             <div className="chips">
               {snapshot.projects.map((name) => (
@@ -496,7 +509,7 @@ export function SettingsScreen({
         onClick={() => onSave(form)}
         disabled={!dirty}
       >
-        {dirty ? "Save changes" : "All changes saved"}
+        {t(dirty ? "Save changes" : "All changes saved")}
       </button>
 
       <p className="small muted" style={{ marginTop: 18, textAlign: "center" }}>

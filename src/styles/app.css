@@ -798,6 +798,58 @@ input:focus, select:focus, textarea:focus {
 .sheet .split input { flex: 1; min-width: 0; }
 .sheet .split .btn { flex: none; padding: 0 14px; }
 
+/* ------------------------------------------------------------ onboarding */
+.onboarding {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  height: 100%;
+  overflow-y: auto;
+  padding: calc(var(--safe-top) + 40px) var(--pad) calc(var(--safe-bottom) + 32px);
+}
+
+.onboarding .steps {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.onboarding .steps span {
+  width: 26px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.2s ease;
+}
+
+.onboarding .steps span.on { background: var(--accent); }
+
+.onboarding .mark {
+  width: 44px;
+  height: 44px;
+  color: var(--accent-text);
+}
+
+.onboarding h1 { font-size: 30px; letter-spacing: -0.03em; }
+
+.onboarding .lead {
+  margin: -6px 0 4px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.onboarding .skip {
+  justify-self: center;
+  padding: 8px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ----------------------------------------------------------------- toast */
 .toast {
   position: fixed;

@@ -24,6 +24,8 @@ export const api = {
 
   setRate: (project: string, rate: number) => invoke<Snapshot>("set_rate", { project, rate }),
 
+  addProject: (name: string) => invoke<Snapshot>("add_project", { name }),
+
   setAutoTags: (project: string, tags: string[]) =>
     invoke<Snapshot>("set_auto_tags", { project, tags }),
 

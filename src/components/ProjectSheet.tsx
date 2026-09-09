@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useT } from "../lib/i18n";
 import { projectColor } from "../lib/colors";
 import { PinIcon, TrashIcon } from "./Icons";
 
@@ -24,6 +25,7 @@ export function ProjectSheet({
   const [hourly, setHourly] = useState(rate ? String(rate) : "");
   const [tags, setTags] = useState(autoTags.join(", "));
   const [weekly, setWeekly] = useState(target ? String(target / 60) : "");
+  const t = useT();
 
   const named = value.trim();
   const priced = Number(hourly) || 0;
@@ -55,7 +57,7 @@ export function ProjectSheet({
 
         <div className="stack">
           <div className="field">
-            <label htmlFor="project-name">Name</label>
+            <label htmlFor="project-name">{t("Name")}</label>
             <input
               id="project-name"
               type="text"
@@ -70,7 +72,7 @@ export function ProjectSheet({
           </div>
 
           <div className="field">
-            <label htmlFor="project-rate">Hourly rate</label>
+            <label htmlFor="project-rate">{t("Hourly rate")}</label>
             <div className="prefixed">
               <span>{currency.trim() || "per hour"}</span>
               <input
@@ -91,9 +93,9 @@ export function ProjectSheet({
           </div>
 
           <div className="field">
-            <label htmlFor="target">Weekly target</label>
+            <label htmlFor="target">{t("Weekly target")}</label>
             <div className="prefixed">
-              <span>hours</span>
+              <span>{t("hours")}</span>
               <input
                 id="target"
                 type="number"
@@ -109,7 +111,7 @@ export function ProjectSheet({
           </div>
 
           <div className="field">
-            <label htmlFor="auto-tags">Always tag with</label>
+            <label htmlFor="auto-tags">{t("Always tag with")}</label>
             <input
               id="auto-tags"
               type="text"
@@ -124,22 +126,22 @@ export function ProjectSheet({
 
           <div className="btn-row">
             <button className="btn" onClick={onClose}>
-              Cancel
+              {t("Cancel")}
             </button>
             <button className={changed ? "btn primary" : "btn"} onClick={save} disabled={!changed}>
-              Save
+              {t("Save")}
             </button>
           </div>
 
           <button className="btn wide" onClick={onTogglePin}>
-            <PinIcon /> {pinned ? "Unpin from the top" : "Pin to the top"}
+            <PinIcon /> {t(pinned ? "Unpin from the top" : "Pin to the top")}
           </button>
           <p className="small muted" style={{ margin: "-6px 0 0", textAlign: "center" }}>
             Pinning arranges the chips. The start button still repeats whatever you tracked last.
           </p>
 
           <button className="btn danger wide" onClick={onForget}>
-            <TrashIcon /> Remove from the quick list
+            <TrashIcon /> {t("Remove from the quick list")}
           </button>
           <p className="small muted" style={{ margin: 0, textAlign: "center" }}>
             Tracked time is kept — only the chip disappears.

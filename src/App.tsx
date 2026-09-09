@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, errorMessage } from "./lib/api";
+import { detectLang, LangProvider, translator, type Lang } from "./lib/i18n";
 import {
   dayKey, formatShort, localIso, plusMinutes, totalSeconds, withDay, withTime,
 } from "./lib/time";
@@ -9,6 +10,7 @@ import { EntrySheet } from "./components/EntrySheet";
 import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { InsightsScreen } from "./components/InsightsScreen";
+import { Onboarding } from "./components/Onboarding";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BulkSheet } from "./components/BulkSheet";
 import { ProjectSheet } from "./components/ProjectSheet";
@@ -61,6 +63,12 @@ export default function App() {
   const [toast, showToast, dismissToast] = useToast();
 
   const running = snapshot?.entries.find((entry) => !entry.end);
+  // Empty means "follow the device", which is what a first launch should do.
+  const lang: Lang =
+    snapshot?.settings.language === "de" || snapshot?.settings.language === "en"
+      ? snapshot.settings.language
+      : detectLang();
+  const t = translator(lang);
 
   /** Wraps a backend call so every failure surfaces as a toast, never a blank screen. */
   const run = useCallback(
@@ -158,12 +166,41 @@ export default function App() {
     );
   }
 
+  // First launch: nothing tracked, no vault, and the guide not yet seen.
+  if (!snapshot.settings.onboarded && !snapshot.entries.length && !snapshot.settings.webdavUrl) {
+    return (
+      <LangProvider lang={lang}>
+      <div className="app">
+        <Onboarding
+          snapshot={snapshot}
+          busy={busy}
+          onAddProject={(name) => run(() => api.addProject(name))}
+          onSaveSettings={(settings) => run(() => api.saveSettings(settings))}
+          onTest={async (settings) => {
+            setBusy(true);
+            try {
+              showToast(await api.testConnection(settings), "ok");
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          onDone={(settings) => run(() => api.saveSettings(settings))}
+        />
+        <Toast toast={toast} onDismiss={dismissToast} />
+      </div>
+      </LangProvider>
+    );
+  }
+
   return (
+    <LangProvider lang={lang}>
     <div className="app">
       <header className="topbar">
-        <h1>{TITLES[tab]}</h1>
+        <h1>{t(TITLES[tab])}</h1>
         <span className="today">
-          today <b>{formatShort(todayTotal)}</b>
+          {t("today")} <b>{formatShort(todayTotal)}</b>
         </span>
       </header>
 
@@ -293,28 +330,28 @@ export default function App() {
       <nav className="tabbar">
         <button aria-current={tab === "track" ? "page" : undefined} onClick={() => setTab("track")}>
           <TimerIcon />
-          Track
+          {t("Track")}
         </button>
         <button
           aria-current={tab === "insights" ? "page" : undefined}
           onClick={() => setTab("insights")}
         >
           <ChartIcon />
-          Insights
+          {t("Insights")}
         </button>
         <button
           aria-current={tab === "history" ? "page" : undefined}
           onClick={() => setTab("history")}
         >
           <ListIcon />
-          History
+          {t("History")}
         </button>
         <button
           aria-current={tab === "settings" ? "page" : undefined}
           onClick={() => setTab("settings")}
         >
           <GearIcon />
-          Settings
+          {t("Settings")}
           {snapshot.pendingDays > 0 && <span className="dot" />}
         </button>
       </nav>
@@ -422,5 +459,6 @@ export default function App() {
 
       <Toast toast={toast} onDismiss={dismissToast} />
     </div>
+    </LangProvider>
   );
 }

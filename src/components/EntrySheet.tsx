@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { overlapping } from "../lib/stats";
 import { dayKey, hhmm, localIso, minutesBetween, plusMinutes, withDay, withTime } from "../lib/time";
+import { useT } from "../lib/i18n";
 import type { Entry } from "../lib/types";
 import { MergeIcon, PlayIcon, SplitIcon } from "./Icons";
 
@@ -31,6 +32,7 @@ export function EntrySheet({
   const [endTime, setEndTime] = useState(entry.end ? hhmm(entry.end) : "");
   const [error, setError] = useState("");
   const [clash, setClash] = useState<Entry[]>([]);
+  const t = useT();
 
   // Both tools act on the entry as stored, not on unsaved edits in this form.
   const stored = entry.end;
@@ -65,7 +67,7 @@ export function EntrySheet({
     } else if (!entry.end && !isNew) {
       end = null; // still running: leave it alone
     } else {
-      setError("Add an end time, or stop the running timer first.");
+      setError(t("Add an end time, or stop the running timer first."));
       return;
     }
 
@@ -98,11 +100,11 @@ export function EntrySheet({
       <div className="scrim" onClick={onClose} />
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Edit entry">
         <div className="grabber" />
-        <h2>{isNew ? "Add entry" : "Edit entry"}</h2>
+        <h2>{t(isNew ? "Add entry" : "Edit entry")}</h2>
 
         <div className="stack">
           <div className="field">
-            <label htmlFor="project">Project</label>
+            <label htmlFor="project">{t("Project")}</label>
             <input
               id="project"
               type="text"
@@ -119,7 +121,7 @@ export function EntrySheet({
           </div>
 
           <div className="field">
-            <label htmlFor="day">Date</label>
+            <label htmlFor="day">{t("Date")}</label>
             <input
               id="day"
               type="date"
@@ -130,7 +132,7 @@ export function EntrySheet({
 
           <div className="row">
             <div className="field">
-              <label htmlFor="from">From</label>
+              <label htmlFor="from">{t("From")}</label>
               <input
                 id="from"
                 type="time"
@@ -139,7 +141,7 @@ export function EntrySheet({
               />
             </div>
             <div className="field">
-              <label htmlFor="to">To</label>
+              <label htmlFor="to">{t("To")}</label>
               <input
                 id="to"
                 type="time"
@@ -151,18 +153,18 @@ export function EntrySheet({
           </div>
 
           <div className="field">
-            <label htmlFor="note">Note</label>
+            <label htmlFor="note">{t("Note")}</label>
             <input
               id="note"
               type="text"
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Optional — ends up in the note"
+              placeholder={t("Optional — ends up in the note")}
             />
           </div>
 
           <div className="field">
-            <label htmlFor="tags">Tags</label>
+            <label htmlFor="tags">{t("Tags")}</label>
             <input
               id="tags"
               type="text"
@@ -170,25 +172,25 @@ export function EntrySheet({
               onChange={(event) => setTags(event.target.value)}
               placeholder="billable, meeting"
             />
-            <span className="help">Comma separated; written to Obsidian as #tags.</span>
+            <span className="help">{t("Comma separated; written to Obsidian as #tags.")}</span>
           </div>
 
           {error && <p className="small" style={{ color: "var(--danger)" }}>{error}</p>}
 
           {clash.length > 0 && (
             <div className="warn">
-              Overlaps {clash.length === 1 ? "" : `${clash.length} entries, including `}
-              <b>{clash[0].project || "Untitled"}</b> {hhmm(clash[0].start)}–
-              {clash[0].end ? hhmm(clash[0].end) : ""}. Save again to keep it anyway.
+              {t("Overlaps")} <b>{clash[0].project || t("Untitled")}</b>{" "}
+              {hhmm(clash[0].start)}–{clash[0].end ? hhmm(clash[0].end) : ""}.{" "}
+              {t("Save again to keep it anyway.")}
             </div>
           )}
 
           <div className="btn-row">
             <button className="btn" onClick={onClose}>
-              Cancel
+              {t("Cancel")}
             </button>
             <button className="btn primary" onClick={save}>
-              Save
+              {t("Save")}
             </button>
           </div>
 
@@ -196,7 +198,7 @@ export function EntrySheet({
             <div className="tools">
               <div className="split">
                 <SplitIcon />
-                <span>Split at</span>
+                <span>{t("Split at")}</span>
                 <input
                   type="time"
                   value={splitAt}
@@ -208,14 +210,17 @@ export function EntrySheet({
                   disabled={!splitAt}
                   onClick={() => onSplit(entry.id, withTime(entry.start, splitAt))}
                 >
-                  Split
+                  {t("Split")}
                 </button>
               </div>
 
               {nextOfProject && (
                 <button className="btn wide" onClick={() => onMerge(entry.id)}>
-                  <MergeIcon /> Merge with {hhmm(nextOfProject.start)}–
-                  {hhmm(nextOfProject.end ?? nextOfProject.start)}
+                  <MergeIcon />{" "}
+                  {t("Merge with {from}–{to}", {
+                    from: hhmm(nextOfProject.start),
+                    to: hhmm(nextOfProject.end ?? nextOfProject.start),
+                  })}
                 </button>
               )}
             </div>
@@ -225,10 +230,10 @@ export function EntrySheet({
             <>
               {/* Picking up yesterday's work is one tap, not a retyped name. */}
               <button className="btn wide" onClick={() => onResume(entry.project)}>
-                <PlayIcon /> Start this project again
+                <PlayIcon /> {t("Start this project again")}
               </button>
               <button className="btn danger wide" onClick={() => onDelete(entry.id)}>
-                Delete entry
+                {t("Delete entry")}
               </button>
             </>
           )}

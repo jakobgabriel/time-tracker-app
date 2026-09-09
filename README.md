@@ -6,9 +6,9 @@ Tap the dial, work, tap it again. Tempo keeps the raw intervals on the phone and
 Markdown block into your daily (or monthly) note — without touching a single line you wrote
 yourself.
 
-| Track | Insights | Editing an entry | Filling a gap |
+| Track | Insights | First run | In German |
 | --- | --- | --- | --- |
-| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![Splitting and merging an entry](docs/screenshots/entry-tools.png) | ![Tapping a gap opens a prefilled entry](docs/screenshots/fill-gap.png) |
+| ![Track](docs/screenshots/track.png) | ![Insights](docs/screenshots/insights.png) | ![The first-run guide](docs/screenshots/onboarding.png) | ![The German interface](docs/screenshots/german.png) |
 
 ## What it does
 
@@ -93,6 +93,16 @@ SORT file.name DESC
 
 Once a project has an hourly rate, the block also carries `billed::` and an **Amount** column in
 the per-project table, so the same query can total a month's invoice.
+
+## First run
+
+The first launch walks through three questions — what you track, your vault, and how notes should
+be written — and every step can be skipped. A time tracker that will not let you start tracking has
+already failed.
+
+The interface is available in **English and German**; it follows the device language until you pick
+one in Settings → Tracking. Messages that come from the backend (sync errors, import results) are
+English for now.
 
 ## Getting the app onto your phone
 

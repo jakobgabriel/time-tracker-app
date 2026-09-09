@@ -1,6 +1,7 @@
 import { projectColor } from "../lib/colors";
 import { dayTimeline } from "../lib/stats";
 import { formatShort } from "../lib/time";
+import { useT } from "../lib/i18n";
 import type { Entry } from "../lib/types";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function DayTimeline({ entries, day, nowMs, onFillGap, onSelect, compact }: Props) {
+  const t = useT();
   const timeline = dayTimeline(entries, day, nowMs);
   const span = Math.max(1, timeline.end - timeline.start);
   const at = (minutes: number) => ((minutes - timeline.start) / span) * 100;
@@ -68,9 +70,14 @@ export function DayTimeline({ entries, day, nowMs, onFillGap, onSelect, compact 
 
       {!compact && (
         <p className="caption">
-          {formatShort(timeline.trackedSeconds)} tracked
+          {t("{tracked} tracked", { tracked: formatShort(timeline.trackedSeconds) })}
           {timeline.gapSeconds > 0 && (
-            <> · {formatShort(timeline.gapSeconds)} in gaps — tap one to fill it</>
+            <>
+              {" · "}
+              {t("{gaps} in gaps — tap one to fill it", {
+                gaps: formatShort(timeline.gapSeconds),
+              })}
+            </>
           )}
         </p>
       )}

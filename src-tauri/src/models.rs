@@ -64,6 +64,10 @@ pub struct Settings {
     pub note_pattern: String,
     /// The same for the weekly roll-ups; empty keeps `<folder>/Weekly/<week>.md`.
     pub weekly_pattern: String,
+    /// `en`, `de`, or empty to follow the device.
+    pub language: String,
+    /// Set once the first-run guide has been through, so it stays gone.
+    pub onboarded: bool,
     /// Cut a session that runs past midnight so each day's total is its own.
     pub split_at_midnight: bool,
     /// Keep a note per project alongside the daily ones.
@@ -96,6 +100,8 @@ impl Default for Settings {
             link_projects: false,
             note_pattern: String::new(),
             weekly_pattern: String::new(),
+            language: String::new(),
+            onboarded: false,
             split_at_midnight: true,
             project_notes: false,
             project_pattern: String::new(),

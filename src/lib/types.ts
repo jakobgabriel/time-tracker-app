@@ -25,6 +25,8 @@ export type Settings = {
   linkProjects: boolean;
   notePattern: string;
   weeklyPattern: string;
+  language: string;
+  onboarded: boolean;
   splitAtMidnight: boolean;
   projectNotes: boolean;
   projectPattern: string;

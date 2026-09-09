@@ -105,6 +105,21 @@ fn set_rate(state: State<'_, AppState>, project: String, rate: f64) -> Result<Sn
     })
 }
 
+/// Remembers a project before anything has been tracked on it — what the
+/// first-run guide needs so the dial has something to start.
+#[tauri::command]
+fn add_project(state: State<'_, AppState>, name: String) -> Result<Snapshot> {
+    state.with(|store| {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(AppError::Invalid("a project needs a name".into()));
+        }
+        store.touch_project(name);
+        store.save()?;
+        Ok(store.snapshot())
+    })
+}
+
 #[tauri::command]
 fn set_auto_tags(
     state: State<'_, AppState>,
@@ -492,6 +507,7 @@ pub fn run() {
             delete_entry,
             rename_project,
             set_rate,
+            add_project,
             set_auto_tags,
             set_target,
             bulk_edit,

@@ -4,6 +4,7 @@ import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSe
   from "../lib/time";
 import { projectColor } from "../lib/colors";
 import { orderedProjects } from "../lib/stats";
+import { useT } from "../lib/i18n";
 import type { Entry, Snapshot } from "../lib/types";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
@@ -29,6 +30,7 @@ export function TrackScreen({
 }: Props) {
   const { entries } = snapshot;
   const projects = orderedProjects(snapshot.projects, snapshot.pinned);
+  const t = useT();
   const running = entries.find((entry) => !entry.end);
   const elapsed = running ? entrySeconds(running, nowMs) : 0;
   const today = dayKey(localIso(new Date(nowMs)));
@@ -88,11 +90,11 @@ export function TrackScreen({
             <>
               <span className="dial-time">{formatClock(elapsed)}</span>
               <span className="dial-project">{running.project}</span>
-              <span className="dial-label">Tap to stop</span>
+              <span className="dial-label">{t("Tap to stop")}</span>
             </>
           ) : (
             <>
-              <span className="dial-label">Start</span>
+              <span className="dial-label">{t("Start")}</span>
               <span className="dial-project">{nextProject}</span>
             </>
           )}
@@ -101,14 +103,14 @@ export function TrackScreen({
         {overrun && running && (
           <div className="warn">
             <span>
-              Running for {formatShort(elapsed)} — forgotten?
+              {t("Running for {elapsed} — forgotten?", { elapsed: formatShort(elapsed) })}
             </span>
             <div className="btn-row">
               <button className="btn" onClick={() => onTrim(running, maxMinutes)}>
-                Stop at {formatShort(maxMinutes * 60)}
+                {t("Stop at {limit}", { limit: formatShort(maxMinutes * 60) })}
               </button>
               <button className="btn" onClick={onStop}>
-                Stop now
+                {t("Stop now")}
               </button>
             </div>
           </div>
@@ -117,7 +119,7 @@ export function TrackScreen({
         <div className="dial-hint">
           {running ? (
             <>
-              since {hhmm(running.start)}
+              {t("since")} {hhmm(running.start)}
               {/* Forgot to hit start? Move the beginning, don't retype it. */}
               <button
                 className="nudge"
@@ -134,15 +136,16 @@ export function TrackScreen({
               >
                 +5
               </button>
-              ·<button onClick={onDiscard}>discard</button>
+              ·<button onClick={onDiscard}>{t("discard")}</button>
               {goal > 0 && <> · {formatShort(todaySeconds)} of {formatShort(goal)}</>}
             </>
           ) : goal > 0 ? (
-            `${formatShort(todaySeconds)} of ${formatShort(goal)}${
-              todaySeconds >= goal ? " — goal reached" : ""
-            }`
+            t(todaySeconds >= goal ? "{done} of {goal} — goal reached" : "{done} of {goal}", {
+              done: formatShort(todaySeconds),
+              goal: formatShort(goal),
+            })
           ) : (
-            "Tap to start — or pick a project below"
+            t("Tap to start — or pick a project below")
           )}
         </div>
       </div>
@@ -150,7 +153,7 @@ export function TrackScreen({
       {running && (
         <input
           type="text"
-          placeholder="What are you working on?"
+          placeholder={t("What are you working on?")}
           value={note}
           onChange={(event) => setNote(event.target.value)}
           onBlur={() => note !== (running.note ?? "") && onNote(note)}
@@ -161,7 +164,7 @@ export function TrackScreen({
       )}
 
       <div className="section-title">
-        <span>Projects</span>
+        <span>{t("Projects")}</span>
       </div>
       <div className="chips">
         {projects.map((project) => (
@@ -179,7 +182,7 @@ export function TrackScreen({
           <input
             ref={newProject}
             type="text"
-            placeholder="New project…"
+            placeholder={t("New project…")}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onBlur={submitDraft}
@@ -193,13 +196,13 @@ export function TrackScreen({
           />
         ) : (
           <button className="chip ghost" onClick={() => setAdding(true)}>
-            <PlusIcon /> New
+            <PlusIcon /> {t("New")}
           </button>
         )}
       </div>
 
       <div className="section-title">
-        <span>Today</span>
+        <span>{t("Today")}</span>
         <span>{formatShort(todaySeconds)}</span>
       </div>
 
@@ -212,7 +215,7 @@ export function TrackScreen({
       />
 
       {todayEntries.length === 0 ? (
-        <p className="empty">Nothing tracked yet today.</p>
+        <p className="empty">{t("Nothing tracked yet today.")}</p>
       ) : (
         <div className="list">
           {todayEntries.map((entry) => (

@@ -7,14 +7,15 @@ import {
   type Range,
 } from "../lib/stats";
 import { dayLabel, entrySeconds, formatShort, totalSeconds } from "../lib/time";
+import { useT } from "../lib/i18n";
 import type { Snapshot } from "../lib/types";
 import { TableIcon } from "./Icons";
 
 type Props = { snapshot: Snapshot; nowMs: number; onInvoice: (month: string) => void };
 
 const RANGES: { key: Range; label: string; compare: string }[] = [
-  { key: "week", label: "Week", compare: "last week" },
-  { key: "month", label: "Month", compare: "last month" },
+  { key: "week", label: "Week", compare: "vs last week" },
+  { key: "month", label: "Month", compare: "vs last month" },
   { key: "all", label: "All", compare: "" },
 ];
 
@@ -22,6 +23,7 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
   const [range, setRange] = useState<Range>("week");
   const [selected, setSelected] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
+  const t = useT();
 
   const tags = tagsUsed(snapshot.entries);
   // Filtering first means the chart, the totals and the money all agree.
@@ -62,7 +64,7 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
               setSelected(null);
             }}
           >
-            {option.label}
+            {t(option.label)}
           </button>
         ))}
       </div>
@@ -70,7 +72,7 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
       {tags.length > 0 && (
         <div className="chips tag-filter">
           <button className={`chip${tag === null ? " active" : ""}`} onClick={() => setTag(null)}>
-            All
+            {t("All")}
           </button>
           {tags.map((name) => (
             <button
@@ -95,12 +97,12 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
               ? shown.key
               : dayLabel(shown.key)
             : range === "all"
-              ? `across ${tracked} tracked day${tracked === 1 ? "" : "s"}`
+              ? t("across {days} tracked days", { days: tracked })
               : previous.length || delta
-                ? `${delta >= 0 ? "+" : "−"}${formatShort(Math.abs(delta))} vs ${
-                    RANGES.find((option) => option.key === range)?.compare
-                  }`
-                : "nothing tracked in the period before"}
+                ? `${delta >= 0 ? "+" : "−"}${formatShort(Math.abs(delta))} ${t(
+                    RANGES.find((option) => option.key === range)?.compare ?? "",
+                  )}`
+                : t("nothing tracked in the period before")}
         </span>
       </div>
 
@@ -131,24 +133,24 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
 
       <div className="stat-row">
         <div>
-          <span className="k">Tracked days</span>
+          <span className="k">{t("Tracked days")}</span>
           <span className="v">{tracked}</span>
         </div>
         <div>
-          <span className="k">Average day</span>
+          <span className="k">{t("Average day")}</span>
           <span className="v">{formatShort(tracked ? Math.round(total / tracked) : 0)}</span>
         </div>
         <div>
-          <span className="k">Streak</span>
+          <span className="k">{t("Streak")}</span>
           <span className="v">
-            {streak.current} day{streak.current === 1 ? "" : "s"}
+            {t(streak.current === 1 ? "{n} day" : "{n} days", { n: streak.current })}
           </span>
           {streak.longest > streak.current && (
-            <span className="k">best {streak.longest}</span>
+            <span className="k">{t("best {n}", { n: streak.longest })}</span>
           )}
         </div>
         <div>
-          <span className="k">Best day</span>
+          <span className="k">{t("Best day")}</span>
           <span className="v">{formatShort(streak.best?.seconds ?? 0)}</span>
           {streak.best && <span className="k">{dayLabel(streak.best.day)}</span>}
         </div>
@@ -159,17 +161,17 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
           className="btn wide"
           onClick={() => onInvoice(new Date(nowMs).toISOString().slice(0, 7))}
         >
-          <TableIcon /> Write the invoice note for this month
+          <TableIcon /> {t("Write the invoice note for this month")}
         </button>
       )}
 
       <div className="section-title">
-        <span>Projects</span>
+        <span>{t("Projects")}</span>
         <span>{projects.length}</span>
       </div>
 
       {projects.length === 0 ? (
-        <p className="empty">Nothing tracked in this range yet.</p>
+        <p className="empty">{t("Nothing tracked in this range yet.")}</p>
       ) : (
         <div className="list">
           {projects.map((item) => {
@@ -200,7 +202,10 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
                     <b>{formatMoney(amount, snapshot.settings.currency)} · </b>
                   )}
                   {target > 0
-                    ? `${Math.round((item.seconds / target) * 100)}% of ${formatShort(target)}`
+                    ? t("{share}% of {target}", {
+                        share: Math.round((item.seconds / target) * 100),
+                        target: formatShort(target),
+                      })
                     : `${Math.round(item.share * 100)}%`}
                 </span>
               </div>
