@@ -148,3 +148,15 @@ pub struct SyncReport {
     pub conflicts: Vec<String>,
     pub at: String,
 }
+
+/// What a sync would write for one day, and where.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotePreview {
+    /// The vault-relative path the note would land at.
+    pub path: String,
+    /// The whole note as it would be created, front matter and all.
+    pub note: String,
+    /// How many entries the block covers.
+    pub entries: usize,
+}

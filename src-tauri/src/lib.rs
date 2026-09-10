@@ -17,7 +17,7 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 
 use error::{AppError, Result};
-use models::{Entry, Settings, Snapshot, SyncReport};
+use models::{Entry, NotePreview, Settings, Snapshot, SyncReport};
 use store::Store;
 
 /// Sent to the UI in place of the real password so the secret never leaves the
@@ -242,6 +242,53 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
     }
     webdav::Dav::from_settings(&settings)?.check().await?;
     Ok("Connected".to_string())
+}
+
+/// The note a sync would write for a given day, without writing it.
+///
+/// Patterns like `Journal/{YYYY}/{YYYY-MM-DD}` and the daily-versus-monthly
+/// choice decide where time lands in someone's vault, and getting them wrong
+/// is only visible after a sync has already put a file somewhere unintended.
+/// This answers the question before that happens, from the settings on screen
+/// rather than the saved ones — so it previews the edit being considered.
+#[tauri::command]
+fn preview_note(
+    state: State<'_, AppState>,
+    settings: Settings,
+    day: String,
+) -> Result<NotePreview> {
+    let (entries, rates) =
+        state.with(|store| Ok((store.entries.clone(), store.project_rates.clone())))?;
+
+    let day = if day.trim().is_empty() {
+        time::local_day(&chrono::Local::now().to_rfc3339())?
+    } else {
+        day
+    };
+    let days = BTreeSet::from([day.clone()]);
+
+    let plan = sync::plan(&entries, &days, &settings.file_layout)?;
+    let (file, mut groups) = plan
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::Invalid("nothing to preview".into()))?;
+    groups.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let block = markdown::render_block(
+        &groups,
+        settings.round_minutes,
+        &rates,
+        &settings.currency,
+        settings.link_projects,
+    )?;
+    let title = file.strip_suffix(".md").unwrap_or(&file).to_string();
+    let note = markdown::merge(None, &block, &title, &settings.note_tag);
+
+    Ok(NotePreview {
+        path: sync::note_path(&settings, &file)?,
+        note,
+        entries: groups.iter().map(|(_, e)| e.len()).sum(),
+    })
 }
 
 /// Writes the notes for every day that changed since the last sync. With
@@ -610,6 +657,7 @@ pub fn run() {
             test_connection,
             sync_now,
             keep_vault_version,
+            preview_note,
             refresh_notification,
             export_csv,
             import_csv,

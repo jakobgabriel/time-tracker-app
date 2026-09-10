@@ -139,6 +139,15 @@ const DE: Record<string, string> = {
   "Two-way sync": "Abgleich in beide Richtungen",
   "Sync now": "Jetzt abgleichen",
 
+  // note preview
+  "Preview today's note": "Heutige Notiz ansehen",
+  "Nothing tracked today — this is the empty note.":
+    "Heute nichts erfasst — so sieht die leere Notiz aus.",
+  "1 entry · written to": "1 Eintrag · geschrieben nach",
+  "{n} entries · written to": "{n} Einträge · geschrieben nach",
+  "Exactly what a sync would write, from the settings above rather than the saved ones — so a path can be checked before it puts a file somewhere unintended.":
+    "Genau das, was ein Abgleich schreiben würde — aus den Einstellungen oben, nicht den gespeicherten. So lässt sich ein Pfad prüfen, bevor eine Datei an der falschen Stelle landet.",
+
   // review
   "1 entry needs a look": "1 Eintrag braucht einen Blick",
   "{n} entries need a look": "{n} Einträge brauchen einen Blick",

@@ -239,3 +239,55 @@ async fn refuses_to_overwrite_a_block_edited_in_the_vault() {
         "the block it just wrote is its own",
     );
 }
+
+/// The preview has to be the note, not an approximation of it — otherwise it
+/// is worse than nothing: it would give confidence in a path that is wrong.
+#[tokio::test]
+#[ignore = "needs a WebDAV server; see the module docs"]
+async fn the_preview_matches_what_the_sync_writes() {
+    let mut settings = settings();
+    settings.vault_folder = "Vault/Preview".into();
+    settings.note_pattern = "Journal/{YYYY}/{YYYY-MM-DD}".into();
+    let day = "2026-09-08".to_string();
+    let days = BTreeSet::from([day.clone()]);
+    let entries = vec![entry("a", "Acme", 9, 11), entry("b", "Admin", 13, 14)];
+
+    // What the preview promises.
+    let grouped = plan(&entries, &days, &settings.file_layout).unwrap();
+    let (file, mut groups) = grouped.into_iter().next().unwrap();
+    groups.sort_by(|a, b| a.0.cmp(&b.0));
+    let block = tempo_lib::markdown::render_block(
+        &groups,
+        settings.round_minutes,
+        &BTreeMap::new(),
+        &settings.currency,
+        settings.link_projects,
+    )
+    .unwrap();
+    let promised = tempo_lib::markdown::merge(
+        None,
+        &block,
+        file.strip_suffix(".md").unwrap(),
+        &settings.note_tag,
+    );
+    let path = tempo_lib::sync::note_path(&settings, &file).unwrap();
+    assert_eq!(path, "Journal/2026/2026-09-08.md", "the pattern won");
+
+    // What the sync actually does.
+    push(
+        &settings,
+        plan(&entries, &days, &settings.file_layout).unwrap(),
+        &BTreeMap::new(),
+        &mut Ledger::default(),
+    )
+    .await
+    .expect("push");
+
+    let written = Dav::from_settings(&settings)
+        .unwrap()
+        .get(&path)
+        .await
+        .unwrap()
+        .expect("the note is where the preview said it would be");
+    assert_eq!(written, promised, "the preview is the note, byte for byte");
+}

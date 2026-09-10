@@ -359,6 +359,14 @@ export default function App() {
             }
           }}
           onOpenProject={setProject}
+          onPreview={async (settings) => {
+            try {
+              return await api.previewNote(settings);
+            } catch (error) {
+              showToast(errorMessage(error), "error");
+              return null;
+            }
+          }}
         />
       )}
 

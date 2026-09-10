@@ -100,6 +100,12 @@ fn resolve(settings: &Settings, pattern: &str, file: &str, subfolder: &str) -> R
     })
 }
 
+/// Where a daily or monthly note lands, for showing someone before a sync puts
+/// it there.
+pub fn note_path(settings: &Settings, file: &str) -> Result<String> {
+    resolve(settings, &settings.note_pattern, file, "")
+}
+
 /// The Monday of an ISO week key, so a weekly pattern can use date placeholders.
 fn week_start(week: &str) -> Result<String> {
     let (year, number) = week
@@ -357,6 +363,42 @@ mod tests {
             markdown::BEGIN,
             markdown::END
         )
+    }
+
+    fn vault(folder: &str, pattern: &str) -> Settings {
+        Settings {
+            vault_folder: folder.into(),
+            note_pattern: pattern.into(),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn a_daily_note_lands_in_the_folder() {
+        assert_eq!(
+            note_path(&vault("Vault/Time", ""), "2026-09-08.md").unwrap(),
+            "Vault/Time/2026-09-08.md",
+        );
+    }
+
+    #[test]
+    fn a_pattern_wins_over_the_folder() {
+        assert_eq!(
+            note_path(
+                &vault("Vault/Time", "Journal/{YYYY}/{YYYY-MM-DD}"),
+                "2026-09-08.md"
+            )
+            .unwrap(),
+            "Journal/2026/2026-09-08.md",
+        );
+    }
+
+    #[test]
+    fn a_month_note_expands_from_its_first_day() {
+        assert_eq!(
+            note_path(&vault("", "Months/{YYYY}/{MMMM}"), "2026-09.md").unwrap(),
+            "Months/2026/September.md",
+        );
     }
 
     #[test]

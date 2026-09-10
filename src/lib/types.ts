@@ -49,6 +49,14 @@ export type Snapshot = {
   conflicts: string[];
 };
 
+export type NotePreview = {
+  /** Vault-relative path the note would land at. */
+  path: string;
+  /** The whole note, front matter and all. */
+  note: string;
+  entries: number;
+};
+
 export type SyncReport = {
   files: number;
   days: number;

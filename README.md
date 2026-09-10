@@ -231,6 +231,14 @@ present, anything else is ignored — so an export from another tracker usually 
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
 
+### Seeing the note before it is written
+
+A note path like `Journal/{YYYY}/{YYYY-MM-DD}` decides where time lands in your vault, and getting
+it wrong is normally only visible after a sync has already put a file somewhere you did not want
+one. Settings → Notes → **Preview today's note** answers it first: the resolved path, and the whole
+note exactly as it would be created. It reads the settings on screen rather than the saved ones, so
+a pattern can be checked before it is committed to.
+
 ### Entries that need a look
 
 At the foot of Insights, and only when there is something to show, Tempo lists time it would

@@ -1251,3 +1251,28 @@ input:focus, select:focus, textarea:focus {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* The note as it would be written. Monospace, because whitespace and the
+   marker comments are exactly what someone is checking here. */
+.note-preview {
+  margin: 8px 0 0;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* The resolved path is the answer someone came here for; let it wrap rather
+   than run off the side, and keep it readable against the help text. */
+.note-path {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

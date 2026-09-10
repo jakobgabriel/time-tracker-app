@@ -3,8 +3,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { projectColor } from "../lib/colors";
 import { useT, type Translate } from "../lib/i18n";
 import { relativeTime } from "../lib/time";
-import type { Settings, Snapshot } from "../lib/types";
-import { ArchiveIcon, SyncIcon, TableIcon } from "./Icons";
+import type { NotePreview, Settings, Snapshot } from "../lib/types";
+import { ArchiveIcon, NoteIcon, SyncIcon, TableIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -17,6 +17,7 @@ type Props = {
   onBackup: () => void;
   onRestore: () => void;
   onOpenProject: (name: string) => void;
+  onPreview: (settings: Settings) => Promise<NotePreview | null>;
 };
 
 const ROUNDING = [0, 5, 6, 10, 15, 30];
@@ -55,9 +56,12 @@ function Section({
 
 export function SettingsScreen({
   snapshot, busy, onSave, onTest, onSync, onExport, onImport, onBackup, onRestore, onOpenProject,
+  onPreview,
 }: Props) {
   const t = useT();
   const [form, setForm] = useState<Settings>(snapshot.settings);
+  const [note, setNote] = useState<NotePreview | null>(null);
+  const preview = async () => setNote(await onPreview(form));
 
   // Adopt what the backend confirmed, but only when it actually changed — a
   // periodic snapshot refresh must not overwrite half-typed credentials.
@@ -177,6 +181,28 @@ export function SettingsScreen({
             Leave empty to keep the notes in the folder above. Set it to write into the daily notes
             your vault already has — relative to the WebDAV root. Placeholders:{" "}
             <code>{"{YYYY} {MM} {DD} {YYYY-MM-DD} {YYYY-MM} {MMM} {MMMM} {YYYY-Www} {ww}"}</code>
+          </span>
+        </div>
+
+        <div className="field">
+          <button className="btn" disabled={busy} onClick={() => preview()}>
+            <NoteIcon /> {t("Preview today's note")}
+          </button>
+          {note && (
+            <>
+              <span className="help">
+                {note.entries === 0
+                  ? t("Nothing tracked today — this is the empty note.")
+                  : note.entries === 1
+                    ? t("1 entry · written to")
+                    : t("{n} entries · written to", { n: note.entries })}{" "}
+                <code className="note-path">{note.path}</code>
+              </span>
+              <pre className="note-preview">{note.note}</pre>
+            </>
+          )}
+          <span className="help">
+            {t("Exactly what a sync would write, from the settings above rather than the saved ones — so a path can be checked before it puts a file somewhere unintended.")}
           </span>
         </div>
 
