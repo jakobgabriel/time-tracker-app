@@ -5,7 +5,7 @@ import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSe
 import { projectColor } from "../lib/colors";
 import { orderedProjects } from "../lib/stats";
 import { useT } from "../lib/i18n";
-import type { Entry, Snapshot, VaultTask } from "../lib/types";
+import type { Entry, IdleGap, Snapshot, VaultTask } from "../lib/types";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
 import { PlusIcon } from "./Icons";
@@ -25,11 +25,14 @@ type Props = {
   onFillGap: (day: string, from: string, to: string) => void;
   tasks: VaultTask[];
   onStartTask: (task: VaultTask) => void;
+  idle: IdleGap | null;
+  onStopAt: (entry: Entry, iso: string) => void;
+  onKeepIdle: () => void;
 };
 
 export function TrackScreen({
   snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart, onFillGap,
-  tasks, onStartTask,
+  tasks, onStartTask, idle, onStopAt, onKeepIdle,
 }: Props) {
   const { entries } = snapshot;
   const projects = orderedProjects(snapshot.projects, snapshot.pinned);
@@ -103,20 +106,38 @@ export function TrackScreen({
           )}
         </button>
 
-        {overrun && running && (
+        {idle && running ? (
           <div className="warn">
             <span>
-              {t("Running for {elapsed} — forgotten?", { elapsed: formatShort(elapsed) })}
+              {t("This ran for {away} without the app being opened.", {
+                away: formatShort(idle.seconds),
+              })}
             </span>
             <div className="btn-row">
-              <button className="btn" onClick={() => onTrim(running, maxMinutes)}>
-                {t("Stop at {limit}", { limit: formatShort(maxMinutes * 60) })}
+              <button className="btn" onClick={() => onStopAt(running, idle.since)}>
+                {t("Stop at {time}", { time: hhmm(idle.since) })}
               </button>
-              <button className="btn" onClick={onStop}>
-                {t("Stop now")}
+              <button className="btn" onClick={onKeepIdle}>
+                {t("Keep it")}
               </button>
             </div>
           </div>
+        ) : (
+          overrun && running && (
+            <div className="warn">
+              <span>
+                {t("Running for {elapsed} — forgotten?", { elapsed: formatShort(elapsed) })}
+              </span>
+              <div className="btn-row">
+                <button className="btn" onClick={() => onTrim(running, maxMinutes)}>
+                  {t("Stop at {limit}", { limit: formatShort(maxMinutes * 60) })}
+                </button>
+                <button className="btn" onClick={onStop}>
+                  {t("Stop now")}
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         <div className="dial-hint">

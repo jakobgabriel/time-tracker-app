@@ -23,6 +23,7 @@ type Props = {
 const ROUNDING = [0, 5, 6, 10, 15, 30];
 const GOALS = [0, 240, 360, 420, 450, 480, 600];
 const LIMITS = [0, 240, 360, 480, 600, 720];
+const IDLE = [0, 60, 120, 180, 300, 480];
 
 const goalLabel = (minutes: number, t: Translate) =>
   minutes === 0
@@ -356,6 +357,24 @@ export function SettingsScreen({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="idle">{t("Ask about a timer that ran unseen")}</label>
+          <select
+            id="idle"
+            value={form.idleMinutes}
+            onChange={(event) => set("idleMinutes", Number(event.target.value))}
+          >
+            {IDLE.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes === 0 ? t("Never") : t("After {n} hours", { n: minutes / 60 })}
+              </option>
+            ))}
+          </select>
+          <span className="help">
+            {t("When the app has not been opened for this long and a timer is still going, it offers to stop it where you left off. A phone asleep in a pocket looks the same as one asleep on a desk, so this only ever asks.")}
+          </span>
         </div>
 
         <div className="field">

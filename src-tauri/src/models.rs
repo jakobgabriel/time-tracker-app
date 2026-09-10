@@ -52,6 +52,10 @@ pub struct Settings {
     pub daily_goal_minutes: u32,
     /// A timer running longer than this was probably forgotten (0 = never warn).
     pub max_session_minutes: u32,
+    /// Minutes the app can go unseen before a still-running timer is queried.
+    /// Zero turns the question off.
+    #[serde(default = "default_idle_minutes")]
+    pub idle_minutes: u32,
     /// Keep a JSON backup next to the notes, refreshed on every sync.
     pub auto_backup: bool,
     /// Also write a per-week roll-up note.
@@ -98,6 +102,7 @@ impl Default for Settings {
             note_tag: "time-tracking".to_string(),
             daily_goal_minutes: 0,
             max_session_minutes: 480,
+            idle_minutes: default_idle_minutes(),
             auto_backup: true,
             weekly_summary: false,
             link_projects: false,
@@ -170,4 +175,22 @@ pub struct VaultTask {
     /// The `[[wikilink]]` in the task, if it had one.
     pub project: Option<String>,
     pub done: bool,
+}
+
+/// Three hours. Short enough to catch a timer left running overnight, long
+/// enough that a phone in a pocket during an ordinary stretch of work does not
+/// trigger it — the app not being looked at is the normal state, not a signal
+/// on its own.
+fn default_idle_minutes() -> u32 {
+    180
+}
+
+/// A stretch during which a timer ran but the app was never in front of anyone.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdleGap {
+    /// When the app was last seen — the honest end for the running entry.
+    pub since: String,
+    /// How long it has been away, in seconds.
+    pub seconds: i64,
 }

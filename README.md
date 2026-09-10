@@ -231,6 +231,17 @@ present, anything else is ignored — so an export from another tracker usually 
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
 
+### A timer that ran while you were away
+
+Tempo notes when it was last actually open. If a timer is still going after the app has gone
+unseen for longer than the threshold in Settings → Tracking (three hours by default, `Never` turns
+it off), it asks once: **Stop at 09:12** — the moment it last saw you — or **Keep it**.
+
+It only ever asks. A phone asleep in a pocket looks exactly like a phone asleep on a desk, and only
+you know which it was, so nothing is trimmed without a tap. What this can say honestly is when the
+app was last open, which is a better answer than the session limit's "stop at eight hours" guess —
+and when there is no gap to report, that older warning is still what you get.
+
 ### Starting from today's note
 
 Your daily note usually already says what the day is meant to be spent on, so Tempo reads it back:

@@ -139,6 +139,16 @@ const DE: Record<string, string> = {
   "Two-way sync": "Abgleich in beide Richtungen",
   "Sync now": "Jetzt abgleichen",
 
+  // idle detection
+  "This ran for {away} without the app being opened.":
+    "Lief {away} lang, ohne dass die App geöffnet wurde.",
+  "Stop at {time}": "Bei {time} beenden",
+  "Keep it": "Behalten",
+  "Stopped where you left off": "Dort beendet, wo du aufgehört hast",
+  "Ask about a timer that ran unseen": "Bei ungesehen laufender Zeit nachfragen",
+  "When the app has not been opened for this long and a timer is still going, it offers to stop it where you left off. A phone asleep in a pocket looks the same as one asleep on a desk, so this only ever asks.":
+    "Wurde die App so lange nicht geöffnet und läuft noch eine Zeit, bietet Tempo an, sie dort zu beenden, wo du aufgehört hast. Ein Handy in der Tasche sieht aus wie eines auf dem Tisch — deshalb wird nur gefragt.",
+
   // today's plan, from the vault
   "From today's note": "Aus der heutigen Notiz",
 

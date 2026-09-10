@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppError, Result};
-use crate::models::{Entry, Settings, Snapshot};
+use crate::models::{Entry, IdleGap, Settings, Snapshot};
 use crate::time::local_day;
 
 /// The on-disk document. It lives in the app's private data directory, which
@@ -32,6 +32,11 @@ pub struct Store {
     /// an edit in the vault distinguishable from Tempo's own output.
     #[serde(default)]
     pub synced: BTreeMap<String, String>,
+    /// When the app was last in front of someone. Only meaningful while a
+    /// timer runs; it is what makes "stop at 14:20" possible instead of the
+    /// guess that "stop at the 8-hour limit" is.
+    #[serde(default)]
+    pub last_seen: Option<String>,
     /// Notes the last sync left alone because someone had edited their block.
     /// Persisted: closing the app should not make an unresolved conflict vanish.
     #[serde(default)]
@@ -72,6 +77,58 @@ impl Store {
         std::fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
         std::fs::rename(&tmp, &self.path)?;
         Ok(())
+    }
+
+    /// Records that the app is in front of someone right now, and reports a
+    /// stretch during which it was not while a timer ran.
+    ///
+    /// The gap is only ever a question, never an edit: a phone asleep in a
+    /// pocket looks exactly like a phone asleep on a desk, and only the person
+    /// holding it knows which it was. What this can say honestly is when the
+    /// app was last open, which is a better answer than the session limit.
+    pub fn seen(&mut self, now: &str) -> Result<Option<IdleGap>> {
+        let previous = self.last_seen.take();
+        self.last_seen = Some(now.to_string());
+
+        let gap = self.idle_gap(previous.as_deref(), now)?;
+        // Writing on every heartbeat would be pointless churn; a minute of
+        // resolution is far finer than a three-hour threshold needs.
+        if gap.is_some()
+            || previous.is_none()
+            || crate::time::duration_seconds(previous.as_deref().unwrap_or(now), now)? >= 60
+        {
+            self.save()?;
+        }
+        Ok(gap)
+    }
+
+    fn idle_gap(&self, previous: Option<&str>, now: &str) -> Result<Option<IdleGap>> {
+        if self.settings.idle_minutes == 0 {
+            return Ok(None);
+        }
+        let Some(previous) = previous else {
+            return Ok(None); // nothing to compare against yet
+        };
+        let Some(running) = self.entries.iter().find(|entry| entry.end.is_none()) else {
+            return Ok(None); // no timer, nothing that could have run away
+        };
+
+        let seconds = crate::time::duration_seconds(previous, now)?;
+        if seconds < i64::from(self.settings.idle_minutes) * 60 {
+            return Ok(None);
+        }
+        // A timer started while the app was away has not been running through
+        // the gap, so its own start is the earliest honest answer.
+        let since = if crate::time::duration_seconds(&running.start, previous)? < 0 {
+            running.start.clone()
+        } else {
+            previous.to_string()
+        };
+        let seconds = crate::time::duration_seconds(&since, now)?;
+        if seconds < i64::from(self.settings.idle_minutes) * 60 {
+            return Ok(None);
+        }
+        Ok(Some(IdleGap { since, seconds }))
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -640,6 +697,104 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ts(hour: u32, minute: u32) -> String {
+        format!("2026-09-08T{hour:02}:{minute:02}:00+02:00")
+    }
+
+    /// A store with a timer running since 09:00 and the app last seen then.
+    fn running_since(idle_minutes: u32) -> (Store, tempfile::TempDir) {
+        let (mut store, dir) = store();
+        store.settings.idle_minutes = idle_minutes;
+        store.start("Acme", "", vec![], &ts(9, 0)).unwrap();
+        store.seen(&ts(9, 0)).unwrap();
+        (store, dir)
+    }
+
+    #[test]
+    fn a_short_absence_is_not_a_gap() {
+        let (mut store, _dir) = running_since(180);
+        // Two hours in a pocket while working is the normal state of a phone.
+        assert!(store.seen(&ts(11, 0)).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_long_absence_offers_the_moment_the_app_was_last_open() {
+        let (mut store, _dir) = running_since(180);
+        let gap = store
+            .seen(&ts(13, 30))
+            .unwrap()
+            .expect("four and a half hours");
+        assert_eq!(gap.since, ts(9, 0));
+        assert_eq!(gap.seconds, 4 * 3600 + 1800);
+    }
+
+    #[test]
+    fn asking_twice_only_asks_once() {
+        let (mut store, _dir) = running_since(180);
+        assert!(store.seen(&ts(13, 30)).unwrap().is_some());
+        assert!(
+            store.seen(&ts(13, 31)).unwrap().is_none(),
+            "the gap closed when the app was seen again",
+        );
+    }
+
+    #[test]
+    fn no_timer_means_nothing_ran_away() {
+        let (mut store, _dir) = running_since(180);
+        store.stop(&ts(9, 30)).unwrap();
+        assert!(store.seen(&ts(20, 0)).unwrap().is_none());
+    }
+
+    #[test]
+    fn zero_turns_the_question_off() {
+        let (mut store, _dir) = running_since(0);
+        assert!(store.seen(&ts(23, 0)).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_timer_started_during_the_absence_is_measured_from_its_own_start() {
+        // The app was last seen at 09:00, but the timer only began at 12:00 —
+        // from the tile, say. It has not been running away since 09:00.
+        let (mut store, _dir) = store();
+        store.settings.idle_minutes = 180;
+        store.seen(&ts(9, 0)).unwrap();
+        store.start("Acme", "", vec![], &ts(12, 0)).unwrap();
+        let gap = store
+            .seen(&ts(16, 0))
+            .unwrap()
+            .expect("four hours of its own");
+        assert_eq!(gap.since, ts(12, 0), "not 09:00, when it was not running");
+        assert_eq!(gap.seconds, 4 * 3600);
+    }
+
+    #[test]
+    fn a_timer_started_during_a_short_absence_is_not_a_gap_at_all() {
+        let (mut store, _dir) = store();
+        store.settings.idle_minutes = 180;
+        store.seen(&ts(9, 0)).unwrap();
+        store.start("Acme", "", vec![], &ts(12, 0)).unwrap();
+        assert!(
+            store.seen(&ts(13, 0)).unwrap().is_none(),
+            "four hours away, but only one of them with a timer running",
+        );
+    }
+
+    #[test]
+    fn the_first_sighting_has_nothing_to_compare_against() {
+        let (mut store, _dir) = store();
+        store.settings.idle_minutes = 180;
+        store.start("Acme", "", vec![], &ts(9, 0)).unwrap();
+        assert!(store.seen(&ts(20, 0)).unwrap().is_none());
+    }
+
+    #[test]
+    fn being_seen_survives_a_reload() {
+        let (mut store, dir) = running_since(180);
+        store.seen(&ts(10, 0)).unwrap();
+        let reloaded = Store::load(&dir.path().join("tempo.json")).unwrap();
+        assert_eq!(reloaded.last_seen.as_deref(), Some(ts(10, 0).as_str()));
+    }
 
     fn store() -> (Store, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();

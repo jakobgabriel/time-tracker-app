@@ -245,6 +245,18 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
     Ok("Connected".to_string())
 }
 
+/// Records that the app is in front of someone, and reports a stretch during
+/// which it was not while a timer ran.
+///
+/// Called while the app is visible, so "last seen" tracks actual use. What
+/// comes back is a question for the user, never an edit: only they know
+/// whether a sleeping phone meant a break or three hours of head-down work.
+#[tauri::command]
+fn seen(state: State<'_, AppState>) -> Result<Option<models::IdleGap>> {
+    let now = chrono::Local::now().to_rfc3339();
+    state.with(|store| store.seen(&now))
+}
+
 /// The open tasks in today's note, so the day's plan can be started from.
 ///
 /// A daily note usually already says what the day is meant to be spent on;
@@ -691,6 +703,7 @@ pub fn run() {
             keep_vault_version,
             preview_note,
             vault_tasks,
+            seen,
             refresh_notification,
             export_csv,
             import_csv,

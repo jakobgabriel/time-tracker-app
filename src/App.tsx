@@ -5,7 +5,7 @@ import { detectLang, LangProvider, translator, type Lang } from "./lib/i18n";
 import {
   dayKey, formatShort, localIso, plusMinutes, totalSeconds, withDay, withTime,
 } from "./lib/time";
-import type { Entry, Settings, Snapshot, VaultTask } from "./lib/types";
+import type { Entry, IdleGap, Settings, Snapshot, VaultTask } from "./lib/types";
 import { EntrySheet } from "./components/EntrySheet";
 import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -100,6 +100,29 @@ export default function App() {
     setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
+  }, [running?.id]);
+
+  // "Seen" is what makes an honest answer possible when a timer has been
+  // running for hours: not the session limit, but the moment the app was last
+  // actually open. Heartbeat while visible, and again on every return to the
+  // front — a phone that slept through the night reports on the first look.
+  const [idle, setIdle] = useState<IdleGap | null>(null);
+  useEffect(() => {
+    if (!running) {
+      setIdle(null);
+      return;
+    }
+    const beat = () => {
+      if (document.visibilityState !== "visible") return;
+      api.seen().then((gap) => gap && setIdle(gap)).catch(() => {});
+    };
+    beat();
+    const timer = window.setInterval(beat, 60_000);
+    document.addEventListener("visibilitychange", beat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", beat);
+    };
   }, [running?.id]);
 
   // Today's plan lives in the vault, so it is fetched rather than derived —
@@ -274,6 +297,13 @@ export default function App() {
           onEdit={setEditing}
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
           onFillGap={fillGap}
+          idle={idle}
+          onStopAt={async (entry, iso) => {
+            if (await run(() => api.saveEntry({ ...entry, end: iso }), "Stopped where you left off")) {
+              setIdle(null);
+            }
+          }}
+          onKeepIdle={() => setIdle(null)}
           tasks={tasks}
           onStartTask={(task) =>
             // The task names the work, so it becomes the note. Its wikilink

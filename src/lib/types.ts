@@ -20,6 +20,8 @@ export type Settings = {
   noteTag: string;
   dailyGoalMinutes: number;
   maxSessionMinutes: number;
+  /** Minutes unseen before a still-running timer is queried. 0 turns it off. */
+  idleMinutes: number;
   autoBackup: boolean;
   weeklySummary: boolean;
   linkProjects: boolean;
@@ -47,6 +49,13 @@ export type Snapshot = {
   pendingDays: number;
   /** Notes whose block was edited in the vault; sync left them alone. */
   conflicts: string[];
+};
+
+/** A stretch during which a timer ran but the app was never looked at. */
+export type IdleGap = {
+  /** When the app was last seen — the honest end for the running entry. */
+  since: string;
+  seconds: number;
 };
 
 /** A Markdown checkbox found in today's vault note. */
