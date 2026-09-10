@@ -18,6 +18,7 @@ const SOURCE = "src-tauri/android/notification";
 const GEN = "src-tauri/gen/android";
 const JAVA = join(GEN, "app/src/main/java", ...IDENTIFIER.split("."));
 const MANIFEST = join(GEN, "app/src/main/AndroidManifest.xml");
+const RULES = join(GEN, "app/proguard-tempo.pro");
 
 if (!existsSync(GEN)) {
   console.error(`${GEN} is missing — run \`tauri android init\` first`);
@@ -29,6 +30,21 @@ for (const file of readdirSync(SOURCE)) {
   copyFileSync(join(SOURCE, file), join(JAVA, file));
   console.log(`installed ${file}`);
 }
+
+// A release build runs R8, and Tauri finds a plugin by name at runtime —
+// `register_android_plugin("com.jakobgabriel.tempo", "NotifyPlugin")` — so
+// nothing in the bytecode references these classes and R8 would drop them.
+// The template's `proguardFiles` picks up every *.pro next to it.
+writeFileSync(
+  RULES,
+  `# Written by scripts/configure-android-notification.mjs.
+# Tauri loads plugins, and parses their arguments, reflectively.
+-keep @app.tauri.annotation.TauriPlugin class * { *; }
+-keep @app.tauri.annotation.InvokeArg class * { *; }
+-keep class com.jakobgabriel.tempo.** { *; }
+`,
+);
+console.log("wrote proguard-tempo.pro");
 
 let manifest = readFileSync(MANIFEST, "utf8");
 

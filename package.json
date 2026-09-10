@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "android:init": "tauri android init",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build --apk",
+    "android:build": "tauri android build --apk --split-per-abi",
     "test": "vitest run",
     "test:watch": "vitest"
   },

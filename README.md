@@ -129,14 +129,19 @@ See **[docs/BUILDING.md](docs/BUILDING.md)** for the local, Docker and self-host
 ### From CI (no toolchain needed)
 
 Push to the repository (or run the **Android APK** workflow by hand) and download the `tempo-apk`
-artifact from the run. Without signing secrets it is a debug-signed APK — installable, just enable
-"install unknown apps" for your browser or file manager.
+artifact from the run. It holds one **release** APK per architecture, around 10 MB each; grab
+`app-arm64-v8a-*.apk` for any phone from the last several years, and allow "install unknown apps"
+for whatever you open it with.
+
+Release builds have to be signed, so without signing secrets the workflow generates a throwaway key.
+That key is different on every run, which means Android will refuse to install a new APK over an old
+one — uninstall first, or add the secrets below and keep one identity.
 
 > **If a run fails within seconds and has no logs**, GitHub never started the job — that is a
 > billing or policy problem rather than the workflow. On a private repository Actions minutes come
 > out of the account quota; on a public one they are free.
 
-For a proper release build, add these repository secrets and the workflow signs it for you:
+Add these repository secrets and the workflow signs with your own key instead:
 
 | Secret | Value |
 | --- | --- |
@@ -163,12 +168,17 @@ export NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
 npm run android:init          # generates src-tauri/gen/android (not checked in)
+node scripts/configure-android-size.mjs   # trims the generated project
 npm run android:dev           # live reload onto a connected device
 npm run android:build         # APK in src-tauri/gen/android/app/build/outputs/apk
 ```
 
 For a signed release build, drop a `keystore.properties` next to the generated Gradle project and
 run `node scripts/configure-signing.mjs` after `android:init` — the same step CI performs.
+
+A debug build is for iterating on a connected device, not for installing by hand: it keeps the
+native debug symbols, and the unoptimized Rust library carrying them is ~225 MB *per architecture*.
+CI builds release only, and fails if any APK exceeds 50 MB.
 
 ## Connecting your vault
 

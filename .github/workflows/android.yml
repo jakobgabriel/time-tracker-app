@@ -57,35 +57,58 @@ jobs:
       - name: Install the ongoing-notification plugin
         run: node scripts/configure-android-notification.mjs
 
-      - name: Configure release signing
-        if: env.ANDROID_KEYSTORE != ''
+      - name: Trim the APK
+        run: node scripts/configure-android-size.mjs
+
+      # A release build is the whole difference between a 600 MB APK and a
+      # small one: the debug build type keeps the native debug symbols, and an
+      # unoptimized Rust library carrying them is ~225 MB per architecture.
+      # Release needs a signing key, so if the repository has no secrets we
+      # make one — that key differs per run, so a phone will refuse to install
+      # over an APK from an earlier run. Add the secrets to keep one identity.
+      - name: Provide a signing key
         run: |
-          echo "$ANDROID_KEYSTORE" | base64 --decode > src-tauri/gen/android/keystore.jks
-          # printf, not a heredoc: YAML indents the block, and an indented
-          # heredoc terminator would never close.
-          printf 'storeFile=keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
-            "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD" \
-            > src-tauri/gen/android/keystore.properties
+          if [ -n "$ANDROID_KEYSTORE" ]; then
+            echo "$ANDROID_KEYSTORE" | base64 --decode > src-tauri/gen/android/keystore.jks
+            # printf, not a heredoc: YAML indents the block, and an indented
+            # heredoc terminator would never close.
+            printf 'storeFile=keystore.jks\nkeyAlias=%s\nkeyPassword=%s\nstorePassword=%s\n' \
+              "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$ANDROID_STORE_PASSWORD" \
+              > src-tauri/gen/android/keystore.properties
+          else
+            echo "::warning::No signing secrets — using a throwaway key. Uninstall any earlier build before installing this one."
+            keytool -genkeypair -keystore src-tauri/gen/android/keystore.jks \
+              -alias tempo -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass tempo-ci -keypass tempo-ci -dname "CN=Tempo CI"
+            printf 'storeFile=keystore.jks\nkeyAlias=tempo\nkeyPassword=tempo-ci\nstorePassword=tempo-ci\n' \
+              > src-tauri/gen/android/keystore.properties
+          fi
           node scripts/configure-signing.mjs
 
-      # Without signing secrets we still produce something installable: a debug
-      # build is signed with the standard Android debug key, a release build
-      # would not be signed at all.
       - name: Build the APK
-        run: |
-          # Split per ABI: a universal debug APK is ~170 MB because it carries
-          # the native library for every architecture. Phones need one.
-          if [ -n "$ANDROID_KEYSTORE" ]; then
-            npx tauri android build --apk --split-per-abi
-          else
-            npx tauri android build --apk --debug --split-per-abi
-          fi
+        run: npx tauri android build --apk --split-per-abi
 
-      - name: Collect the APKs
+      - name: Collect the APKs, and hold them to a budget
         run: |
           mkdir -p artifacts
           find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} artifacts/ \;
-          ls -lh artifacts
+          limit=$((50 * 1024 * 1024))
+          over=0
+          {
+            echo "| APK | Size |"
+            echo "| --- | ---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for apk in artifacts/*.apk; do
+            bytes=$(stat -c%s "$apk")
+            human=$(numfmt --to=iec --format='%.1f' "$bytes")
+            printf '| %s | %s |\n' "$(basename "$apk")" "$human" >> "$GITHUB_STEP_SUMMARY"
+            echo "$(basename "$apk") — $human"
+            if [ "$bytes" -gt "$limit" ]; then
+              echo "::error::$(basename "$apk") is $human, over the 50 MB budget"
+              over=1
+            fi
+          done
+          exit "$over"
 
       - uses: actions/upload-artifact@v4
         with:
