@@ -9,7 +9,8 @@ the `tempo-apk` artifact from the run. It holds one APK per architecture — `ap
 is the one for any phone from the last several years. Tagging `v0.1.0` also attaches them to a
 release.
 
-These are release builds, around 10 MB each. Release APKs must be signed, so without signing
+These are release builds: 7.9 MB for `arm64` (any phone from the last several years), 5.6 MB for
+32-bit `arm`, and two x86 builds for emulators. Release APKs must be signed, so without signing
 secrets the workflow generates a throwaway key — a different one every run, so Android will refuse
 to install over an APK from an earlier run. Uninstall first, or add the four secrets listed in the
 README to sign with a key that stays the same.
@@ -71,8 +72,8 @@ lets the existing workflow build there — free, private, and no change beyond `
 
 ## Why the APK is the size it is
 
-A phone-sized APK is about 10 MB. Almost all of that is AndroidX and Material; the Rust library is
-a few hundred kilobytes and the interface is under 300 KB.
+A phone-sized APK is 7.9 MB, measured. Almost all of that is AndroidX and Material: the Rust
+library is 0.3 MB and the interface 288 KB.
 
 Two things will make it enormous if you let them:
 

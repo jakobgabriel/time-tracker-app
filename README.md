@@ -129,9 +129,10 @@ See **[docs/BUILDING.md](docs/BUILDING.md)** for the local, Docker and self-host
 ### From CI (no toolchain needed)
 
 Push to the repository (or run the **Android APK** workflow by hand) and download the `tempo-apk`
-artifact from the run. It holds one **release** APK per architecture, around 10 MB each; grab
-`app-arm64-v8a-*.apk` for any phone from the last several years, and allow "install unknown apps"
-for whatever you open it with.
+artifact from the run. It holds one **release** APK per architecture — grab **`app-arm64-release.apk`
+(7.9 MB)** for any phone from the last several years, and allow "install unknown apps" for whatever
+you open it with. The others are `app-arm-release.apk` (5.6 MB) for older 32-bit phones and the two
+x86 builds for emulators.
 
 Release builds have to be signed, so without signing secrets the workflow generates a throwaway key.
 That key is different on every run, which means Android will refuse to install a new APK over an old
