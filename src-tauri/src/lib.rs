@@ -534,6 +534,7 @@ fn refresh_notification(app: tauri::AppHandle, state: State<'_, AppState>) -> Re
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(notification_plugin())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;

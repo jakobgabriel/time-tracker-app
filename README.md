@@ -102,11 +102,11 @@ quick-settings tile that shows whether anything is running. The Kotlin for it li
 `scripts/configure-android-notification.mjs`, which CI runs after `tauri android init` — the same
 arrangement as the signing config, since `src-tauri/gen/android` is not checked in.
 
-**This is the one part of the app that has never run.** There is no Android SDK in the environment
-it was written in and CI has not produced an APK yet, so the Kotlin has not been compiled, let
-alone tested on a device. The Rust side is behind `#[cfg(target_os = "android")]` and the desktop
-build is unaffected; the notification failing is logged and never touches the timer. Treat the
-first real build as the start of debugging this.
+**It compiles, but it has never run.** CI builds the APK with this code in it, so the Kotlin is at
+least valid and the Gradle wiring is right — but nothing has installed that APK on a phone, so
+whether the notification actually appears, ticks and survives being backgrounded is unknown. The
+Rust side is behind `#[cfg(target_os = "android")]` and the desktop build is unaffected; a
+notification that fails to update is logged and never touches the timer.
 
 Its action opens the app rather than claiming to stop the timer. Stopping from the shade needs the
 launch intent plumbed through to the webview, which is the first thing to add once there is a build

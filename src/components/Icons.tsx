@@ -85,6 +85,13 @@ export const ShieldIcon = (p: Props) => (
   </svg>
 );
 
+export const NoteIcon = (p: Props) => (
+  <svg {...base} {...p} width="16" height="16">
+    <path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z" />
+    <path d="M14 3v5h5M9 13h6M9 17h4" />
+  </svg>
+);
+
 export const CloudIcon = (p: Props) => (
   <svg {...base} {...p} width="18" height="18">
     <path d="M7 18a4 4 0 0 1-.6-7.95 5.5 5.5 0 0 1 10.7-1.3A3.75 3.75 0 0 1 17 18z" />

@@ -5,9 +5,10 @@ import {
 } from "../lib/time";
 import { useT } from "../lib/i18n";
 import type { Entry, Snapshot } from "../lib/types";
+import { openNote } from "../lib/obsidian";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
-import { PlusIcon } from "./Icons";
+import { NoteIcon, PlusIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -34,6 +35,7 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
   }, [snapshot.entries, query]);
 
   const days = groupByDay(matches);
+  const vault = snapshot.settings.vaultName;
 
   const weekTotals = new Map<string, number>();
   for (const [day, entries] of days) {
@@ -91,6 +93,20 @@ export function HistoryScreen({ snapshot, nowMs, onEdit, onAdd, onFillGap, onBul
               )}
               <div className="day-head">
                 <span className="label">{dayLabel(day)}</span>
+                {vault && (
+                  /* Obsidian finds a note by name, so the vault's folder
+                     structure never has to be mirrored here. */
+                  <button
+                    className="in-obsidian"
+                    aria-label={t("Open in Obsidian")}
+                    title={t("Open in Obsidian")}
+                    onClick={() =>
+                      openNote(vault, snapshot.settings.fileLayout === "daily" ? day : day.slice(0, 7))
+                    }
+                  >
+                    <NoteIcon />
+                  </button>
+                )}
                 <span className="total">{formatShort(totalSeconds(entries, nowMs))}</span>
               </div>
               {/* Only for an unfiltered view: a strip of "matches" would lie. */}

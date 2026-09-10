@@ -73,10 +73,12 @@ jobs:
       # would not be signed at all.
       - name: Build the APK
         run: |
+          # Split per ABI: a universal debug APK is ~170 MB because it carries
+          # the native library for every architecture. Phones need one.
           if [ -n "$ANDROID_KEYSTORE" ]; then
-            npx tauri android build --apk
+            npx tauri android build --apk --split-per-abi
           else
-            npx tauri android build --apk --debug
+            npx tauri android build --apk --debug --split-per-abi
           fi
 
       - name: Collect the APKs

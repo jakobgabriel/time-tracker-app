@@ -25,6 +25,7 @@ export type Settings = {
   linkProjects: boolean;
   notePattern: string;
   weeklyPattern: string;
+  vaultName: string;
   language: string;
   onboarded: boolean;
   splitAtMidnight: boolean;

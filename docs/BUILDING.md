@@ -5,7 +5,9 @@ Four ways, cheapest first. The repository is public, so the GitHub Actions route
 ## 1. GitHub Actions (nothing to install)
 
 Push to `main` or any `claude/**` branch, or run the **Android APK** workflow by hand, and download
-the `tempo-apk` artifact from the run. Tagging `v0.1.0` also attaches the APK to a release.
+the `tempo-apk` artifact from the run. It holds one APK per architecture — `app-arm64-v8a-*.apk`
+is the one for any phone from the last several years. Tagging `v0.1.0` also attaches them to a
+release.
 
 Without signing secrets the artifact is a **debug-signed** APK — installable on your own phone once
 you allow "install unknown apps" for the browser or file manager you open it with. For a release

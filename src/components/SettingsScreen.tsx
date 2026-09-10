@@ -265,6 +265,22 @@ export function SettingsScreen({
         )}
 
         <div className="field">
+          <label htmlFor="vault-name">{t("Vault name")}</label>
+          <input
+            id="vault-name"
+            type="text"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="My Vault"
+            value={form.vaultName}
+            onChange={(event) => set("vaultName", event.target.value)}
+          />
+          <span className="help">
+            {t("Obsidian's name for the vault. With it, History gets a link straight into each day's note.")}
+          </span>
+        </div>
+
+        <div className="field">
           <label htmlFor="tag">{t("Tag for new notes")}</label>
           <input
             id="tag"

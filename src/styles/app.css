@@ -480,12 +480,30 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 .day-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   margin: 20px 0 8px;
 }
 
 .day-head .label { font-size: 15px; font-weight: 640; }
+
+/* Sits next to the day it opens, and pushes the total to the far edge. */
+.day-head .in-obsidian {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--faint);
+  align-self: center;
+}
+
+.day-head .in-obsidian:active { background: var(--surface-2); color: var(--text); }
+
+.day-head .label + .total { margin-left: auto; }
 .day-head .total { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); }
 
 .week-head {

@@ -64,6 +64,9 @@ pub struct Settings {
     pub note_pattern: String,
     /// The same for the weekly roll-ups; empty keeps `<folder>/Weekly/<week>.md`.
     pub weekly_pattern: String,
+    /// The Obsidian vault's name, which is all an `obsidian://` link needs to
+    /// find a note. Empty hides the links.
+    pub vault_name: String,
     /// `en`, `de`, or empty to follow the device.
     pub language: String,
     /// Set once the first-run guide has been through, so it stays gone.
@@ -100,6 +103,7 @@ impl Default for Settings {
             link_projects: false,
             note_pattern: String::new(),
             weekly_pattern: String::new(),
+            vault_name: String::new(),
             language: String::new(),
             onboarded: false,
             split_at_midnight: true,

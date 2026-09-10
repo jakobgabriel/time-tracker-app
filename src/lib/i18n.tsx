@@ -161,6 +161,10 @@ const DE: Record<string, string> = {
   "{n}h ago": "vor {n} Std.",
   "{n}d ago": "vor {n} Tagen",
   Language: "Sprache",
+  "Vault name": "Vault-Name",
+  "Open in Obsidian": "In Obsidian öffnen",
+  "Obsidian's name for the vault. With it, History gets a link straight into each day's note.":
+    "Obsidians Name für den Vault. Damit bekommt der Verlauf einen Link direkt in die Notiz des Tages.",
   English: "Englisch",
   German: "Deutsch",
 
