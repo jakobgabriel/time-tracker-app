@@ -8,7 +8,10 @@ on:
 
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue rather than cancel. Cancelling meant a push during a build threw away
+  # the only thing that build was for — the APK and its size — and the next run
+  # started the release compile from scratch anyway.
+  cancel-in-progress: false
 
 jobs:
   apk:
