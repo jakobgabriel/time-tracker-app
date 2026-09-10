@@ -10,7 +10,7 @@ import { dayLabel, entrySeconds, formatShort, totalSeconds } from "../lib/time";
 import { useT } from "../lib/i18n";
 import type { Entry, Snapshot } from "../lib/types";
 import { ReviewCard } from "./ReviewCard";
-import { TableIcon } from "./Icons";
+import { ReceiptIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -167,7 +167,7 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice, onEdit }: Props) {
           className="btn wide"
           onClick={() => onInvoice(new Date(nowMs).toISOString().slice(0, 7))}
         >
-          <TableIcon /> {t("Write the invoice note for this month")}
+          <ReceiptIcon /> {t("Write the invoice note for this month")}
         </button>
       )}
 

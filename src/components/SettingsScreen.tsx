@@ -4,7 +4,7 @@ import { projectColor } from "../lib/colors";
 import { useT, type Translate } from "../lib/i18n";
 import { relativeTime } from "../lib/time";
 import type { Settings, Snapshot } from "../lib/types";
-import { CloudIcon, ShieldIcon, TableIcon } from "./Icons";
+import { ArchiveIcon, SyncIcon, TableIcon } from "./Icons";
 
 type Props = {
   snapshot: Snapshot;
@@ -443,7 +443,7 @@ export function SettingsScreen({
 
         <div className="btn-row">
           <button className="btn primary" onClick={() => onSync(false)} disabled={busy}>
-            <CloudIcon className={busy ? "spin" : undefined} /> {t("Sync now")}
+            <SyncIcon className={busy ? "spin" : undefined} /> {t("Sync now")}
           </button>
           <button className="btn" onClick={() => onSync(true)} disabled={busy}>
             {t("Rewrite all")}
@@ -482,7 +482,7 @@ export function SettingsScreen({
         </div>
         <div className="btn-row">
           <button className="btn" onClick={onBackup} disabled={busy}>
-            <ShieldIcon /> {t("Back up")}
+            <ArchiveIcon /> {t("Back up")}
           </button>
           <button className="btn" onClick={onRestore} disabled={busy}>
             {t("Restore")}
