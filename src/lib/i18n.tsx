@@ -139,6 +139,9 @@ const DE: Record<string, string> = {
   "Two-way sync": "Abgleich in beide Richtungen",
   "Sync now": "Jetzt abgleichen",
 
+  // today's plan, from the vault
+  "From today's note": "Aus der heutigen Notiz",
+
   // note preview
   "Preview today's note": "Heutige Notiz ansehen",
   "Nothing tracked today — this is the empty note.":

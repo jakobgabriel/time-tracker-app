@@ -5,7 +5,7 @@ import { entrySeconds, dayKey, formatClock, formatShort, hhmm, localIso, totalSe
 import { projectColor } from "../lib/colors";
 import { orderedProjects } from "../lib/stats";
 import { useT } from "../lib/i18n";
-import type { Entry, Snapshot } from "../lib/types";
+import type { Entry, Snapshot, VaultTask } from "../lib/types";
 import { DayTimeline } from "./DayTimeline";
 import { EntryRow } from "./EntryRow";
 import { PlusIcon } from "./Icons";
@@ -23,10 +23,13 @@ type Props = {
   onTrim: (entry: Entry, minutes: number) => void;
   onShiftStart: (entry: Entry, minutes: number) => void;
   onFillGap: (day: string, from: string, to: string) => void;
+  tasks: VaultTask[];
+  onStartTask: (task: VaultTask) => void;
 };
 
 export function TrackScreen({
   snapshot, nowMs, onStart, onStop, onDiscard, onEdit, onNote, onTrim, onShiftStart, onFillGap,
+  tasks, onStartTask,
 }: Props) {
   const { entries } = snapshot;
   const projects = orderedProjects(snapshot.projects, snapshot.pinned);
@@ -161,6 +164,25 @@ export function TrackScreen({
             if (event.key === "Enter") event.currentTarget.blur();
           }}
         />
+      )}
+
+      {tasks.length > 0 && (
+        <>
+          <div className="section-title">
+            <span>{t("From today's note")}</span>
+          </div>
+          <ul className="tasks">
+            {tasks.map((task) => (
+              <li key={task.text}>
+                <button onClick={() => onStartTask(task)}>
+                  <span className="box" aria-hidden="true" />
+                  <span className="what">{task.text}</span>
+                  {task.project && <span className="where">{task.project}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <div className="section-title">

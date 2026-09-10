@@ -231,6 +231,19 @@ present, anything else is ignored — so an export from another tracker usually 
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
 
+### Starting from today's note
+
+Your daily note usually already says what the day is meant to be spent on, so Tempo reads it back:
+the open checkboxes in today's note appear under the dial, and tapping one starts tracking it. The
+task becomes the entry's note, and a `[[wikilink]]` in it names the project — the same link **A note
+per project** writes into your vault — so `- [ ] Fix the login on [[Acme Rollout]]` starts Acme
+Rollout with "Fix the login on Acme Rollout" attached. Without a link it uses the project you used
+last.
+
+Done tasks are not offered, nor is anything inside a code fence, nor anything between the tempo
+markers — a table Tempo wrote is not somebody's plan. Nothing is ever ticked off or written back:
+the vault's checkboxes stay the vault's.
+
 ### Seeing the note before it is written
 
 A note path like `Journal/{YYYY}/{YYYY-MM-DD}` decides where time lands in your vault, and getting

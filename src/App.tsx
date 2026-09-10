@@ -5,7 +5,7 @@ import { detectLang, LangProvider, translator, type Lang } from "./lib/i18n";
 import {
   dayKey, formatShort, localIso, plusMinutes, totalSeconds, withDay, withTime,
 } from "./lib/time";
-import type { Entry, Settings, Snapshot } from "./lib/types";
+import type { Entry, Settings, Snapshot, VaultTask } from "./lib/types";
 import { EntrySheet } from "./components/EntrySheet";
 import { ChartIcon, GearIcon, ListIcon, TimerIcon } from "./components/Icons";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -101,6 +101,23 @@ export default function App() {
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [running?.id]);
+
+  // Today's plan lives in the vault, so it is fetched rather than derived —
+  // on launch, and again whenever the app is brought back to the front. A
+  // vault that is unreachable simply means no tasks; it is not an error worth
+  // interrupting someone's day with.
+  const [tasks, setTasks] = useState<VaultTask[]>([]);
+  const loadTasks = useCallback(() => {
+    api.vaultTasks().then(setTasks).catch(() => setTasks([]));
+  }, []);
+
+  useEffect(() => {
+    if (!snapshot?.settings.webdavUrl.trim()) return;
+    loadTasks();
+    const refresh = () => document.visibilityState === "visible" && loadTasks();
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [snapshot?.settings.webdavUrl, loadTasks]);
 
   // Coming back from the background: the elapsed time is derived from the
   // start timestamp, so a single refresh is all it takes to be correct again.
@@ -257,6 +274,20 @@ export default function App() {
           onEdit={setEditing}
           onNote={(note) => running && run(() => api.saveEntry({ ...running, note }))}
           onFillGap={fillGap}
+          tasks={tasks}
+          onStartTask={(task) =>
+            // The task names the work, so it becomes the note. Its wikilink
+            // names the project when it has one; otherwise the project is
+            // whichever was used last, which is nearly always the right guess.
+            run(async () => {
+              const project =
+                task.project?.trim() || snapshot.projects[0] || task.text;
+              const started = (await api.start(project)).entries.find((entry) => !entry.end);
+              return started
+                ? await api.saveEntry({ ...started, note: task.text })
+                : await api.snapshot();
+            }, `Tracking “${task.text}”`)
+          }
           onShiftStart={(entry, minutes) =>
             run(() => api.saveEntry({ ...entry, start: plusMinutes(entry.start, minutes) }))
           }

@@ -1276,3 +1276,58 @@ input:focus, select:focus, textarea:focus {
   color: var(--text);
   overflow-wrap: anywhere;
 }
+
+/* Today's plan, read out of the vault note. Checkbox-shaped, because that is
+   what it is in the note — tapping one starts tracking it, it does not tick
+   it off; the vault stays the vault's. */
+.tasks {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.tasks button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+.tasks button:active { background: var(--surface-2); border-color: var(--accent); }
+
+.tasks .box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.8px solid var(--faint);
+  border-radius: 5px;
+}
+
+.tasks button:active .box { border-color: var(--accent); }
+
+.tasks .what {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks .where {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 600;
+}

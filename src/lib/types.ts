@@ -49,6 +49,14 @@ export type Snapshot = {
   conflicts: string[];
 };
 
+/** A Markdown checkbox found in today's vault note. */
+export type VaultTask = {
+  text: string;
+  /** The [[wikilink]] in the task, if it had one. */
+  project: string | null;
+  done: boolean;
+};
+
 export type NotePreview = {
   /** Vault-relative path the note would land at. */
   path: string;

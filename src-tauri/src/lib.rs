@@ -8,6 +8,7 @@ pub mod notify;
 pub mod paths;
 pub mod store;
 pub mod sync;
+pub mod tasks;
 pub mod time;
 pub mod webdav;
 
@@ -242,6 +243,37 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
     }
     webdav::Dav::from_settings(&settings)?.check().await?;
     Ok("Connected".to_string())
+}
+
+/// The open tasks in today's note, so the day's plan can be started from.
+///
+/// A daily note usually already says what the day is meant to be spent on;
+/// retyping that into a tracker is the friction this removes. It reads the
+/// same note a sync writes to, so the two always agree about which file that
+/// is. Done tasks are dropped here rather than in the interface — there is
+/// nothing to start on one.
+#[tauri::command]
+async fn vault_tasks(state: State<'_, AppState>) -> Result<Vec<models::VaultTask>> {
+    let settings = state.with(|store| Ok(store.settings.clone()))?;
+    if settings.webdav_url.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let day = time::local_day(&chrono::Local::now().to_rfc3339())?;
+    let file = match settings.file_layout {
+        models::FileLayout::Daily => format!("{day}.md"),
+        models::FileLayout::Monthly => format!("{}.md", time::local_month(&day)),
+    };
+    let path = sync::note_path(&settings, &file)?;
+
+    let Some(note) = webdav::Dav::from_settings(&settings)?.get(&path).await? else {
+        return Ok(Vec::new()); // no note yet today is not an error
+    };
+
+    Ok(tasks::parse(&note)
+        .into_iter()
+        .filter(|task| !task.done)
+        .collect())
 }
 
 /// The note a sync would write for a given day, without writing it.
@@ -658,6 +690,7 @@ pub fn run() {
             sync_now,
             keep_vault_version,
             preview_note,
+            vault_tasks,
             refresh_notification,
             export_csv,
             import_csv,

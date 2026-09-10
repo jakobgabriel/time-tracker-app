@@ -291,3 +291,78 @@ async fn the_preview_matches_what_the_sync_writes() {
         .expect("the note is where the preview said it would be");
     assert_eq!(written, promised, "the preview is the note, byte for byte");
 }
+
+/// Reading the day's plan out of the vault: the note is a real one on a real
+/// server, written the way Obsidian writes them, and read back through the
+/// same path resolution a sync uses.
+#[tokio::test]
+#[ignore = "needs a WebDAV server; see the module docs"]
+async fn reads_the_open_tasks_out_of_todays_note() {
+    let mut settings = settings();
+    settings.vault_folder = "Vault/Tasks".into();
+    let day = "2026-09-08";
+    let path = "Vault/Tasks/2026-09-08.md";
+    let dav = Dav::from_settings(&settings).unwrap();
+    dav.ensure_folder("Vault/Tasks").await.unwrap();
+
+    // A daily note as someone would actually keep it.
+    let note = format!(
+        "---\ntags:\n  - daily\n---\n\n# {day}\n\n## Plan\n\n\
+         - [ ] Fix the login on [[Acme Rollout]]\n\
+         - [x] Stand-up\n\
+         - [ ] Review Lena's PR 📅 2026-09-09\n\
+         - [ ] Write the invoice for [[Admin|September]]\n\n\
+         ## Notes\n\nSome prose, and a snippet:\n\n\
+         ```md\n- [ ] not a real task\n```\n",
+    );
+    dav.put(path, note).await.unwrap();
+
+    let fetched = dav.get(path).await.unwrap().unwrap();
+    let open: Vec<_> = tempo_lib::tasks::parse(&fetched)
+        .into_iter()
+        .filter(|t| !t.done)
+        .collect();
+
+    assert_eq!(
+        open.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(),
+        [
+            "Fix the login on Acme Rollout",
+            "Review Lena's PR",
+            "Write the invoice for September",
+        ],
+        "the done one, and the one in the fence, are not offered",
+    );
+    assert_eq!(open[0].project.as_deref(), Some("Acme Rollout"));
+    assert_eq!(open[1].project, None);
+    assert_eq!(
+        open[2].project.as_deref(),
+        Some("Admin"),
+        "an aliased link still points at the project note",
+    );
+
+    // And a sync into the same note must not turn its own table into tasks.
+    push(
+        &settings,
+        plan(
+            &[entry("a", "Acme Rollout", 9, 11)],
+            &BTreeSet::from([day.to_string()]),
+            &settings.file_layout,
+        )
+        .unwrap(),
+        &BTreeMap::new(),
+        &mut Ledger::default(),
+    )
+    .await
+    .expect("push");
+
+    let after = dav.get(path).await.unwrap().unwrap();
+    assert_eq!(
+        tempo_lib::tasks::parse(&after)
+            .into_iter()
+            .filter(|t| !t.done)
+            .count(),
+        3,
+        "the block Tempo wrote is not a source of tasks",
+    );
+    assert!(after.contains("- [ ] Fix the login"), "the plan survived");
+}

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { localIso } from "./time";
-import type { Entry, NotePreview, Settings, Snapshot, SyncReport } from "./types";
+import type { Entry, NotePreview, Settings, Snapshot, SyncReport, VaultTask } from "./types";
 
 /// Every mutation returns the full snapshot, so the UI never has to guess what
 /// the backend now believes.
@@ -50,6 +50,9 @@ export const api = {
   testConnection: (settings: Settings) => invoke<string>("test_connection", { settings }),
 
   sync: (full = false, force = false) => invoke<SyncReport>("sync_now", { full, force }),
+
+  /** Open tasks in today's vault note. Empty when no vault is configured. */
+  vaultTasks: () => invoke<VaultTask[]>("vault_tasks"),
 
   /** What a sync would write for `day`, from the settings on screen. */
   previewNote: (settings: Settings, day = "") =>

@@ -160,3 +160,14 @@ pub struct NotePreview {
     /// How many entries the block covers.
     pub entries: usize,
 }
+
+/// A Markdown checkbox found in a vault note.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultTask {
+    /// The task as a person reads it, with link syntax resolved.
+    pub text: String,
+    /// The `[[wikilink]]` in the task, if it had one.
+    pub project: Option<String>,
+    pub done: bool,
+}
