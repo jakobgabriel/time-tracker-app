@@ -45,10 +45,13 @@ export type Snapshot = {
   projectTargets: Record<string, number>;
   settings: Settings;
   pendingDays: number;
+  /** Notes whose block was edited in the vault; sync left them alone. */
+  conflicts: string[];
 };
 
 export type SyncReport = {
   files: number;
   days: number;
+  conflicts: string[];
   at: string;
 };

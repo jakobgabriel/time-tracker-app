@@ -133,6 +133,9 @@ pub struct Snapshot {
     pub project_targets: BTreeMap<String, u32>,
     pub settings: Settings,
     pub pending_days: usize,
+    /// Notes whose block was edited in the vault, which the last sync left
+    /// alone rather than overwrite.
+    pub conflicts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -140,5 +143,8 @@ pub struct Snapshot {
 pub struct SyncReport {
     pub files: usize,
     pub days: usize,
+    /// Notes left alone because their block had been edited in the vault.
+    #[serde(default)]
+    pub conflicts: Vec<String>,
     pub at: String,
 }

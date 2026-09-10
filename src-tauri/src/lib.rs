@@ -11,7 +11,7 @@ pub mod sync;
 pub mod time;
 pub mod webdav;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use tauri::{Manager, State};
@@ -247,8 +247,8 @@ async fn test_connection(state: State<'_, AppState>, settings: Settings) -> Resu
 /// Writes the notes for every day that changed since the last sync. With
 /// `full`, every day that has entries is rewritten instead.
 #[tauri::command]
-async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> {
-    let (settings, entries, projects, rates, deleted, days) = state.with(|store| {
+async fn sync_now(state: State<'_, AppState>, full: bool, force: bool) -> Result<SyncReport> {
+    let (settings, entries, projects, rates, deleted, days, synced) = state.with(|store| {
         let days: BTreeSet<String> = if full {
             store
                 .entries
@@ -266,6 +266,7 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
             store.project_rates.clone(),
             store.deleted.clone(),
             days,
+            store.synced.clone(),
         ))
     })?;
 
@@ -296,6 +297,7 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
         return Ok(SyncReport {
             files: 0,
             days: 0,
+            conflicts: Vec::new(),
             at: settings
                 .last_sync
                 .clone()
@@ -303,22 +305,27 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
         });
     }
 
+    // The ledger remembers what Tempo left in each note, so a block someone
+    // has since edited in Obsidian is skipped rather than silently rewritten.
+    let mut ledger = sync::Ledger::new(synced, force);
+
     let plan = sync::plan(&entries, &days, &settings.file_layout)?;
     // The lock is released for the duration of the network round trips, so the
     // UI stays responsive and a timer can be started mid-sync.
-    let mut report = sync::push(&settings, plan, &rates).await?;
+    let mut report = sync::push(&settings, plan, &rates, &mut ledger).await?;
 
     if settings.weekly_summary {
         let weekly = sync::weekly_plan(&entries, &days)?;
-        report.files += sync::push_into(&settings, weekly, &rates, WEEKLY_FOLDER)
+        report.files += sync::push_into(&settings, weekly, &rates, WEEKLY_FOLDER, &mut ledger)
             .await?
             .files;
     }
 
     if settings.project_notes {
-        let projects = sync::project_plan(&entries, &days)?;
-        report.files += sync::push_projects(&settings, projects, &rates).await?;
+        let plan = sync::project_plan(&entries, &days)?;
+        report.files += sync::push_projects(&settings, plan, &rates, &mut ledger).await?;
     }
+    report.conflicts = ledger.conflicts.clone();
 
     if settings.auto_backup {
         // Best effort: a failed backup must not lose the sync that succeeded.
@@ -328,14 +335,51 @@ async fn sync_now(state: State<'_, AppState>, full: bool) -> Result<SyncReport> 
     }
 
     state.with(|store| {
-        for day in &days {
-            store.dirty_days.remove(day);
+        // A skipped note leaves its days unwritten, and the ledger knows note
+        // paths rather than days — so nothing is cleared until the conflict is
+        // resolved. Re-pushing a note that was already correct costs a request.
+        if ledger.conflicts.is_empty() {
+            for day in &days {
+                store.dirty_days.remove(day);
+            }
         }
+        store.synced = ledger.known;
+        store.conflicts = ledger.conflicts;
         store.settings.last_sync = Some(report.at.clone());
         store.save()
     })?;
 
     Ok(report)
+}
+
+/// Accepts the vault's version of every note the last sync flagged.
+///
+/// It records what is in those notes now as the new baseline, which stops the
+/// warning without touching the vault. Tempo's block there is rewritten the
+/// next time that day's entries actually change — the block is Tempo's, and
+/// this only settles who was right about the edit that already happened.
+#[tauri::command]
+async fn keep_vault_version(state: State<'_, AppState>) -> Result<Snapshot> {
+    let (settings, conflicts) =
+        state.with(|store| Ok((store.settings.clone(), store.conflicts.clone())))?;
+
+    let mut adopted: BTreeMap<String, String> = BTreeMap::new();
+    if !conflicts.is_empty() {
+        let dav = webdav::Dav::from_settings(&settings)?;
+        for path in &conflicts {
+            // A note that has since been deleted or emptied simply drops out.
+            if let Some(block) = dav.get(path).await?.as_deref().and_then(markdown::extract) {
+                adopted.insert(path.clone(), markdown::fingerprint(block));
+            }
+        }
+    }
+
+    state.with(|store| {
+        store.synced.extend(adopted);
+        store.conflicts.clear();
+        store.save()?;
+        Ok(store.snapshot())
+    })
 }
 
 /// The vault subfolder the weekly roll-ups live in.
@@ -565,6 +609,7 @@ pub fn run() {
             save_settings,
             test_connection,
             sync_now,
+            keep_vault_version,
             refresh_notification,
             export_csv,
             import_csv,

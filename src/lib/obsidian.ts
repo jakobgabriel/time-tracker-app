@@ -21,3 +21,12 @@ export async function openNote(vault: string, note: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * The note name inside a vault-relative path: `Time/2026-09-08.md` is the note
+ * `2026-09-08`. Obsidian links by name, and the WebDAV path is all sync knows.
+ */
+export function noteName(path: string): string {
+  const last = path.split("/").filter(Boolean).pop() ?? path;
+  return last.replace(/\.md$/i, "");
+}

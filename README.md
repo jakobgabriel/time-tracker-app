@@ -243,6 +243,21 @@ default, or a `{project}` pattern of your own. It carries the project's total, i
 has billed, and a row per day linking back to that day's note. Combined with **Link projects**, the
 vault ends up with a graph that connects hours to work.
 
+### When you edit a note yourself
+
+Everything outside `%% tempo:begin %%` … `%% tempo:end %%` is yours and is never touched. Inside
+the markers is Tempo's, and it used to be rewritten without looking. It no longer is: a sync
+remembers what it left in each note, and if the block has changed since, it leaves that note alone
+and says so. A banner names the notes — each with a button that opens it in Obsidian — and offers
+two answers:
+
+- **Keep edits** — the vault stays exactly as it is and the warning goes. Tempo writes that block
+  again the next time the day's entries change; the block is still Tempo's.
+- **Overwrite** — sync anyway, and Tempo's numbers win.
+
+Nothing is queued away in the meantime: while a conflict is open the days it covers stay pending,
+so nothing is lost by leaving it until later.
+
 ### Two devices
 
 **Two-way sync** reads `tempo-backup.json` before writing, so a second device's sessions — and its

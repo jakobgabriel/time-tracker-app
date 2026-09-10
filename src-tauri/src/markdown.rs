@@ -263,6 +263,36 @@ pub fn render_project_block(
     Ok(out)
 }
 
+/// The generated block inside a note, if it has one.
+pub fn extract(note: &str) -> Option<&str> {
+    let start = note.find(BEGIN)?;
+    let end = note.find(END)?;
+    if end <= start {
+        return None;
+    }
+    Some(note[start + BEGIN.len()..end].trim())
+}
+
+/// A cheap, stable fingerprint of a block (FNV-1a), so the next sync can tell
+/// what Tempo wrote from what someone edited afterwards.
+///
+/// Whitespace is normalised first: editors reflow on save, and that is not a
+/// person changing the numbers. It only has to answer "is this still ours?",
+/// so a cryptographic hash would be beside the point.
+pub fn fingerprint(block: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in block
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .bytes()
+    {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
 /// Splices the generated block into a note.
 ///
 /// Anything the user wrote outside the markers is preserved verbatim — that is
@@ -462,6 +492,46 @@ mod tests {
         assert!(merged.contains("new"));
         assert!(!merged.contains("old"));
         assert_eq!(merged.matches(BEGIN).count(), 1);
+    }
+
+    #[test]
+    fn recognises_its_own_block_wherever_it_sits() {
+        let block = plain(&sample(), 0);
+        let note = merge(None, &block, "2026-09-08", "t");
+        assert_eq!(
+            fingerprint(extract(&note).expect("the note has a block")),
+            fingerprint(extract(&format!("prose\n\n{block}\n\nmore prose")).unwrap()),
+            "the surrounding note is not part of the block",
+        );
+    }
+
+    #[test]
+    fn notices_an_edit_inside_the_block() {
+        let block = plain(&sample(), 0);
+        let note = merge(None, &block, "2026-09-08", "t");
+        let edited = note.replace("Acme", "Acme Rollout");
+        assert_ne!(
+            fingerprint(extract(&note).unwrap()),
+            fingerprint(extract(&edited).unwrap()),
+        );
+    }
+
+    #[test]
+    fn reflowing_is_not_an_edit() {
+        let block = plain(&sample(), 0);
+        let note = merge(None, &block, "2026-09-08", "t");
+        let reflowed = note.replace("\n\n", "\n\n\n").replace(" | ", "  |  ");
+        assert_eq!(
+            fingerprint(extract(&note).unwrap()),
+            fingerprint(extract(&reflowed).unwrap()),
+            "an editor reflowing on save is not someone changing the numbers",
+        );
+    }
+
+    #[test]
+    fn a_note_without_a_block_has_nothing_to_extract() {
+        assert!(extract("# Monday\n\nJust prose.").is_none());
+        assert!(extract(&format!("{END} out of order {BEGIN}")).is_none());
     }
 
     #[test]

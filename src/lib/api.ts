@@ -49,7 +49,10 @@ export const api = {
 
   testConnection: (settings: Settings) => invoke<string>("test_connection", { settings }),
 
-  sync: (full = false) => invoke<SyncReport>("sync_now", { full }),
+  sync: (full = false, force = false) => invoke<SyncReport>("sync_now", { full, force }),
+
+  /** Accepts the vault's version of every note the last sync flagged. */
+  keepVaultVersion: () => invoke<Snapshot>("keep_vault_version"),
 
   /** Brings the Android notification in line with the timer; no-op elsewhere. */
   refreshNotification: () => invoke<void>("refresh_notification").catch(() => {}),

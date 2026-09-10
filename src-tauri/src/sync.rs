@@ -11,6 +11,60 @@ use crate::webdav::Dav;
 /// Which local days end up in which note, together with the entries to write.
 type Plan = BTreeMap<String, Vec<(String, Vec<Entry>)>>;
 
+/// What Tempo last wrote into each note, so a sync can tell its own block from
+/// one someone has edited in Obsidian since.
+///
+/// Everything outside the markers is already safe — `markdown::merge` never
+/// touches it. This is about the inside: without it a sync silently discards
+/// a correction made in the vault, which for a notes-first app is the worst
+/// thing it could do.
+#[derive(Debug, Default)]
+pub struct Ledger {
+    /// Note path -> fingerprint of the block Tempo left there.
+    pub known: BTreeMap<String, String>,
+    /// Write over an edited block instead of leaving it alone.
+    pub force: bool,
+    /// Notes skipped this sync because their block had been edited.
+    pub conflicts: Vec<String>,
+}
+
+impl Ledger {
+    pub fn new(known: BTreeMap<String, String>, force: bool) -> Self {
+        Self {
+            known,
+            force,
+            conflicts: Vec::new(),
+        }
+    }
+
+    /// Whether this note may be written, recording a conflict when it may not.
+    fn may_write(&mut self, path: &str, existing: Option<&str>) -> bool {
+        if self.force {
+            return true;
+        }
+        let Some(block) = existing.and_then(markdown::extract) else {
+            return true; // no block of ours to overwrite
+        };
+        let Some(known) = self.known.get(path) else {
+            // Nothing recorded for this note: it predates the check, or another
+            // device wrote it. Adopt it rather than crying wolf.
+            return true;
+        };
+        if markdown::fingerprint(block) == *known {
+            return true;
+        }
+        self.conflicts.push(path.to_string());
+        false
+    }
+
+    fn wrote(&mut self, path: &str, note: &str) {
+        if let Some(block) = markdown::extract(note) {
+            self.known
+                .insert(path.to_string(), markdown::fingerprint(block));
+        }
+    }
+}
+
 fn note_name(day: &str, layout: &FileLayout) -> String {
     match layout {
         FileLayout::Daily => format!("{day}.md"),
@@ -167,12 +221,13 @@ pub async fn push_projects(
     settings: &Settings,
     plan: ProjectPlan,
     rates: &BTreeMap<String, f64>,
+    ledger: &mut Ledger,
 ) -> Result<usize> {
     if plan.is_empty() {
         return Ok(0);
     }
     let dav = Dav::from_settings(settings)?;
-    let written = plan.len();
+    let mut written = 0;
 
     for (project, days) in plan {
         let stem = crate::paths::file_stem(&project);
@@ -203,8 +258,13 @@ pub async fn push_projects(
             &settings.currency,
         )?;
         let existing = dav.get(&path).await?;
+        if !ledger.may_write(&path, existing.as_deref()) {
+            continue;
+        }
         let merged = markdown::merge(existing.as_deref(), &block, &project, &settings.note_tag);
-        dav.put(&path, merged).await?;
+        dav.put(&path, merged.clone()).await?;
+        ledger.wrote(&path, &merged);
+        written += 1;
     }
 
     Ok(written)
@@ -222,6 +282,7 @@ pub async fn push_into(
     plan: Plan,
     rates: &BTreeMap<String, f64>,
     subfolder: &str,
+    ledger: &mut Ledger,
 ) -> Result<SyncReport> {
     let dav = Dav::from_settings(settings)?;
     let pattern = if subfolder.is_empty() {
@@ -230,8 +291,8 @@ pub async fn push_into(
         settings.weekly_pattern.clone()
     };
 
-    let days = plan.values().map(|days| days.len()).sum();
-    let files = plan.len();
+    let mut days = 0;
+    let mut files = 0;
 
     for (file, mut day_groups) in plan {
         day_groups.sort_by(|a, b| a.0.cmp(&b.0));
@@ -253,18 +314,25 @@ pub async fn push_into(
         if existing.is_none() && day_groups.iter().all(|(_, e)| e.is_empty()) {
             continue;
         }
+        if !ledger.may_write(&path, existing.as_deref()) {
+            continue;
+        }
         let merged = markdown::merge(
             existing.as_deref(),
             &block,
             note_title(&file),
             &settings.note_tag,
         );
-        dav.put(&path, merged).await?;
+        dav.put(&path, merged.clone()).await?;
+        ledger.wrote(&path, &merged);
+        files += 1;
+        days += day_groups.len();
     }
 
     Ok(SyncReport {
         files,
         days,
+        conflicts: ledger.conflicts.clone(),
         at: Local::now().to_rfc3339(),
     })
 }
@@ -273,13 +341,90 @@ pub async fn push(
     settings: &Settings,
     plan: Plan,
     rates: &BTreeMap<String, f64>,
+    ledger: &mut Ledger,
 ) -> Result<SyncReport> {
-    push_into(settings, plan, rates, "").await
+    push_into(settings, plan, rates, "", ledger).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A note as it looks after Tempo has written to it.
+    fn note(block_body: &str) -> String {
+        format!(
+            "# Monday\n\nmy own prose\n\n{} {block_body} {}\n\nmore prose",
+            markdown::BEGIN,
+            markdown::END
+        )
+    }
+
+    #[test]
+    fn a_note_tempo_has_never_written_is_adopted() {
+        let mut ledger = Ledger::default();
+        assert!(
+            ledger.may_write("Day.md", Some(&note("tracked:: 1h"))),
+            "nothing recorded means the note predates the check, not that it was edited",
+        );
+        assert!(ledger.conflicts.is_empty());
+    }
+
+    #[test]
+    fn an_untouched_block_is_rewritten() {
+        let mut ledger = Ledger::default();
+        let existing = note("tracked:: 1h");
+        ledger.wrote("Day.md", &existing);
+        assert!(ledger.may_write("Day.md", Some(&existing)));
+        assert!(ledger.conflicts.is_empty());
+    }
+
+    #[test]
+    fn an_edited_block_is_left_alone() {
+        let mut ledger = Ledger::default();
+        ledger.wrote("Day.md", &note("tracked:: 1h"));
+        assert!(!ledger.may_write("Day.md", Some(&note("tracked:: 4h"))));
+        assert_eq!(ledger.conflicts, vec!["Day.md".to_string()]);
+    }
+
+    #[test]
+    fn prose_outside_the_block_is_not_a_conflict() {
+        let mut ledger = Ledger::default();
+        ledger.wrote("Day.md", &note("tracked:: 1h"));
+        let rewritten = format!("{}\n\nand a paragraph the user added", note("tracked:: 1h"));
+        assert!(
+            ledger.may_write("Day.md", Some(&rewritten)),
+            "merge never touches what is outside the markers, so it cannot be lost",
+        );
+    }
+
+    #[test]
+    fn force_writes_over_an_edit() {
+        let mut ledger = Ledger::new(BTreeMap::new(), true);
+        ledger.wrote("Day.md", &note("tracked:: 1h"));
+        assert!(ledger.may_write("Day.md", Some(&note("tracked:: 4h"))));
+        assert!(ledger.conflicts.is_empty());
+    }
+
+    #[test]
+    fn a_missing_note_is_not_a_conflict() {
+        let mut ledger = Ledger::default();
+        ledger.wrote("Day.md", &note("tracked:: 1h"));
+        assert!(ledger.may_write("Day.md", None), "deleted in the vault");
+        assert!(
+            ledger.may_write("Day.md", Some("# Monday\n\nsomeone removed the block")),
+            "no block of ours means nothing of ours to lose",
+        );
+    }
+
+    #[test]
+    fn each_note_is_judged_on_its_own() {
+        let mut ledger = Ledger::default();
+        ledger.wrote("Mon.md", &note("tracked:: 1h"));
+        ledger.wrote("Tue.md", &note("tracked:: 2h"));
+        assert!(!ledger.may_write("Mon.md", Some(&note("tracked:: 9h"))));
+        assert!(ledger.may_write("Tue.md", Some(&note("tracked:: 2h"))));
+        assert_eq!(ledger.conflicts, vec!["Mon.md".to_string()]);
+    }
 
     fn entry(day: &str, hour: u32) -> Entry {
         Entry {

@@ -13,6 +13,7 @@ import { InsightsScreen } from "./components/InsightsScreen";
 import { Onboarding } from "./components/Onboarding";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BulkSheet } from "./components/BulkSheet";
+import { ConflictBanner } from "./components/ConflictBanner";
 import { ProjectSheet } from "./components/ProjectSheet";
 import { Toast, useToast } from "./components/Toast";
 import { TrackScreen } from "./components/TrackScreen";
@@ -115,14 +116,25 @@ export default function App() {
   }, [run]);
 
   const sync = useCallback(
-    async (full: boolean, quiet = false) => {
+    async (full: boolean, quiet = false, force = false) => {
       setBusy(true);
       try {
-        const report = await api.sync(full);
+        const report = await api.sync(full, force);
         setSnapshot(await api.snapshot());
-        if (!quiet) {
+        // A conflict is worth saying out loud even on a background sync: the
+        // banner explains it, but the sync did not do what was asked.
+        if (report.conflicts.length) {
           showToast(
-            report.files === 0 ? "Everything is already up to date" : `Synced ${report.files} note(s)`,
+            `${report.conflicts.length} note(s) were edited in your vault — left alone`,
+            "error",
+          );
+        } else if (!quiet) {
+          showToast(
+            report.files === 0
+              ? "Everything is already up to date"
+              : force
+                ? "Synced, and overwrote what was edited"
+                : `Synced ${report.files} note(s)`,
             "ok",
           );
         }
@@ -207,6 +219,24 @@ export default function App() {
           {t("today")} <b>{formatShort(todayTotal)}</b>
         </span>
       </header>
+
+      <ConflictBanner
+        conflicts={snapshot.conflicts}
+        vault={snapshot.settings.vaultName}
+        busy={busy}
+        onKeep={async () => {
+          setBusy(true);
+          try {
+            setSnapshot(await api.keepVaultVersion());
+            showToast("Kept the vault's version", "ok");
+          } catch (error) {
+            showToast(errorMessage(error), "error");
+          } finally {
+            setBusy(false);
+          }
+        }}
+        onOverwrite={() => sync(false, false, true)}
+      />
 
       {tab === "track" && (
         <TrackScreen

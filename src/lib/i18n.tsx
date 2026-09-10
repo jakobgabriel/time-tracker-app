@@ -138,6 +138,18 @@ const DE: Record<string, string> = {
   "Sync when a timer stops": "Beim Stoppen abgleichen",
   "Two-way sync": "Abgleich in beide Richtungen",
   "Sync now": "Jetzt abgleichen",
+
+  // sync conflicts
+  "A note was edited in your vault, so Tempo left it alone.":
+    "Eine Notiz wurde im Vault bearbeitet — Tempo hat sie unverändert gelassen.",
+  "{n} notes were edited in your vault, so Tempo left them alone.":
+    "{n} Notizen wurden im Vault bearbeitet — Tempo hat sie unverändert gelassen.",
+  "Keep edits": "Behalten",
+  Overwrite: "Überschreiben",
+  "Keeping them leaves the vault as it is — until that day changes again.":
+    "„Behalten“ lässt den Vault unverändert — bis sich dieser Tag wieder ändert.",
+  "Kept the vault's version": "Vault-Fassung behalten",
+  "Synced, and overwrote what was edited": "Abgeglichen und Bearbeitetes überschrieben",
   "Rewrite all": "Alles neu schreiben",
   "Export CSV": "CSV exportieren",
   "Import CSV": "CSV importieren",

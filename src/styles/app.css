@@ -79,7 +79,10 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 /* ----------------------------------------------------------------- shell */
 .app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Named rows, not positional: the conflict banner is not always rendered,
+     and a shell that changes shape when it appears is how the screen ended up
+     under the dial. Row 2 collapses to nothing when there is no banner. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   height: 100%;
   max-width: 560px;
   margin: 0 auto;
@@ -87,6 +90,7 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 }
 
 .topbar {
+  grid-row: 1;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -106,12 +110,14 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 .topbar .today b { color: var(--text); font-weight: 640; }
 
 .screen {
+  grid-row: 3;
   overflow-y: auto;
   padding: 6px var(--pad) 24px;
   -webkit-overflow-scrolling: touch;
 }
 
 .tabbar {
+  grid-row: 4;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
@@ -487,12 +493,11 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
 .day-head .label { font-size: 15px; font-weight: 640; }
 
 /* Sits next to the day it opens, and pushes the total to the far edge. */
-.day-head .in-obsidian {
+.in-obsidian {
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
-  margin-right: auto;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -501,7 +506,9 @@ h1, h2, h3 { margin: 0; font-weight: 640; letter-spacing: -0.02em; }
   align-self: center;
 }
 
-.day-head .in-obsidian:active { background: var(--surface-2); color: var(--text); }
+.in-obsidian:active { background: var(--surface-2); color: var(--text); }
+
+.day-head .in-obsidian { margin-right: auto; }
 
 .day-head .label + .total { margin-left: auto; }
 .day-head .total { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -1144,3 +1151,63 @@ input:focus, select:focus, textarea:focus {
 
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
+
+/* Sync conflicts — a note whose block was edited in the vault. Loud enough to
+   answer, quiet enough to live above every screen until someone does. */
+.conflicts {
+  grid-row: 2;
+  margin: 0 var(--pad) 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+
+.conflict-lead {
+  margin: 0 0 10px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.conflict-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  /* The banner sits above the screen rather than scrolling with it, so a long
+     list scrolls inside itself instead of squeezing the app off the phone. */
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.conflict-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.conflict-path {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.conflict-folder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--faint);
+}
+
+.conflict-name {
+  flex: none;
+  color: var(--muted);
+}
+
+.conflicts .help {
+  margin: 10px 0 0;
+}

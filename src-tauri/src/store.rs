@@ -28,6 +28,14 @@ pub struct Store {
     /// Ids of entries that were deleted, and when. Without these a restore or
     /// a two-way sync would resurrect everything the other device removed.
     pub deleted: BTreeMap<String, String>,
+    /// Note path -> fingerprint of the block Tempo last wrote there. What makes
+    /// an edit in the vault distinguishable from Tempo's own output.
+    #[serde(default)]
+    pub synced: BTreeMap<String, String>,
+    /// Notes the last sync left alone because someone had edited their block.
+    /// Persisted: closing the app should not make an unresolved conflict vanish.
+    #[serde(default)]
+    pub conflicts: Vec<String>,
     #[serde(skip)]
     path: PathBuf,
 }
@@ -84,6 +92,7 @@ impl Store {
             project_targets: self.project_targets.clone(),
             settings,
             pending_days: self.dirty_days.len(),
+            conflicts: self.conflicts.clone(),
         }
     }
 
