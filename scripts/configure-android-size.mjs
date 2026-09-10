@@ -67,11 +67,11 @@ if (!gradle.includes("isShrinkResources")) {
 }
 
 // 3. Drop every locale the app does not speak.
-if (!gradle.includes("resourceConfigurations")) {
+if (!gradle.includes("localeFilters")) {
   const locales = LOCALES.map((l) => `"${l}"`).join(", ");
   gradle = gradle.replace(
-    "        minSdk = 24",
-    `        minSdk = 24\n        resourceConfigurations += listOf(${locales})`,
+    "    buildTypes {",
+    `    androidResources {\n        localeFilters += listOf(${locales})\n    }\n\n    buildTypes {`,
   );
 }
 
@@ -85,7 +85,7 @@ if (gradle !== before) writeFileSync(GRADLE, gradle);
 // Verify, rather than assume. A silently missed replace here is a 600 MB APK.
 const expected = [
   ["isShrinkResources = true", "resource shrinking"],
-  ["resourceConfigurations += listOf(", "locale filtering"],
+  ["localeFilters += listOf(", "locale filtering"],
   ["dependenciesInfo {", "dependency-info removal"],
 ];
 let failed = false;
