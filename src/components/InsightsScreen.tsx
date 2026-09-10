@@ -8,10 +8,16 @@ import {
 } from "../lib/stats";
 import { dayLabel, entrySeconds, formatShort, totalSeconds } from "../lib/time";
 import { useT } from "../lib/i18n";
-import type { Snapshot } from "../lib/types";
+import type { Entry, Snapshot } from "../lib/types";
+import { ReviewCard } from "./ReviewCard";
 import { TableIcon } from "./Icons";
 
-type Props = { snapshot: Snapshot; nowMs: number; onInvoice: (month: string) => void };
+type Props = {
+  snapshot: Snapshot;
+  nowMs: number;
+  onInvoice: (month: string) => void;
+  onEdit: (entry: Entry) => void;
+};
 
 const RANGES: { key: Range; label: string; compare: string }[] = [
   { key: "week", label: "Week", compare: "vs last week" },
@@ -19,7 +25,7 @@ const RANGES: { key: Range; label: string; compare: string }[] = [
   { key: "all", label: "All", compare: "" },
 ];
 
-export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
+export function InsightsScreen({ snapshot, nowMs, onInvoice, onEdit }: Props) {
   const [range, setRange] = useState<Range>("week");
   const [selected, setSelected] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -213,6 +219,10 @@ export function InsightsScreen({ snapshot, nowMs, onInvoice }: Props) {
           })}
         </div>
       )}
+
+      {/* Last, because it is about the whole history rather than the range
+          above it — and it is not there at all on a tidy one. */}
+      <ReviewCard snapshot={snapshot} nowMs={nowMs} onEdit={onEdit} />
     </div>
   );
 }

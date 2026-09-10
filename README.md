@@ -230,6 +230,14 @@ present, anything else is ignored — so an export from another tracker usually 
 a couple of headers. Rows that cannot be read are skipped and counted rather than failing the whole
 file, and importing the same file twice adds nothing the second time.
 
+### Entries that need a look
+
+At the foot of Insights, and only when there is something to show, Tempo lists time it would
+report wrongly: two entries over the same hour, a session past your limit that was left running
+overnight, a row imported without a project, a mis-tap with no time in it, and anything dated in
+the future. Each one opens that entry, so the fix is a tap rather than a hunt through History. A
+running timer is never listed — it is not a fact yet.
+
 ### The invoice note
 
 In the month view of Insights, **Write the invoice note** puts `Invoices/2026-09.md` in the vault:

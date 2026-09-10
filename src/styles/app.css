@@ -1211,3 +1211,43 @@ input:focus, select:focus, textarea:focus {
 .conflicts .help {
   margin: 10px 0 0;
 }
+
+/* Entries the app would report wrongly. Warm, not alarming: none of this is
+   broken, it just does not add up yet. */
+.review { margin-top: 28px; }
+
+.review-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.review-list button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid color-mix(in srgb, var(--warn) 70%, var(--line));
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+.review-list button:active { background: var(--surface-2); }
+
+.review-list .reason { font-size: 14px; font-weight: 600; }
+
+.review .link {
+  margin-top: 10px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

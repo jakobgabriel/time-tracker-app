@@ -273,6 +273,7 @@ export default function App() {
         <InsightsScreen
           snapshot={snapshot}
           nowMs={nowMs}
+          onEdit={setEditing}
           onInvoice={async (month) => {
             setBusy(true);
             try {

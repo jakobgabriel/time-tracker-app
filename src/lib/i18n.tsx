@@ -139,6 +139,19 @@ const DE: Record<string, string> = {
   "Two-way sync": "Abgleich in beide Richtungen",
   "Sync now": "Jetzt abgleichen",
 
+  // review
+  "1 entry needs a look": "1 Eintrag braucht einen Blick",
+  "{n} entries need a look": "{n} Einträge brauchen einen Blick",
+  "Overlaps another entry": "Überschneidet einen anderen Eintrag",
+  "Longer than your session limit": "Länger als dein Sitzungslimit",
+  "No project": "Kein Projekt",
+  "No time in it": "Ohne Dauer",
+  "In the future": "In der Zukunft",
+  "no project": "kein Projekt",
+  and: "und",
+  "Show fewer": "Weniger zeigen",
+  "Show all {n}": "Alle {n} zeigen",
+
   // sync conflicts
   "A note was edited in your vault, so Tempo left it alone.":
     "Eine Notiz wurde im Vault bearbeitet — Tempo hat sie unverändert gelassen.",
