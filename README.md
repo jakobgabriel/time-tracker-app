@@ -124,6 +124,8 @@ English for now.
 
 ## Getting the app onto your phone
 
+See **[docs/BUILDING.md](docs/BUILDING.md)** for the local, Docker and self-hosted-runner routes.
+
 ### From CI (no toolchain needed)
 
 Push to the repository (or run the **Android APK** workflow by hand) and download the `tempo-apk`
@@ -131,10 +133,8 @@ artifact from the run. Without signing secrets it is a debug-signed APK — inst
 "install unknown apps" for your browser or file manager.
 
 > **If a run fails within seconds and has no logs**, GitHub never started the job — that is a
-> billing or policy problem, not the workflow. This repository is private, so Actions minutes come
-> out of the account quota: check **Settings → Billing → Plans and usage** for an exhausted quota or
-> a missing spending limit, or make the repository public (Actions on public repositories are free).
-> Building locally, below, needs no Actions at all.
+> billing or policy problem rather than the workflow. On a private repository Actions minutes come
+> out of the account quota; on a public one they are free.
 
 For a proper release build, add these repository secrets and the workflow signs it for you:
 
